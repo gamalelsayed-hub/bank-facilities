@@ -1,0 +1,1042 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:">
+<title>إدارة التسهيلات البنكية</title>
+<style>
+:root{
+  --bg:#F3F6F5; --surface:#FFFFFF; --sunk:#EAF0EE; --ink:#13211D; --muted:#5B6B66; --line:#D8E1DE;
+  --accent:#0E6B5B; --accent-ink:#FFFFFF; --accent-soft:#DCEFEA;
+  --danger:#B42318; --danger-soft:#FDECEA; --warn:#A15C07; --warn-soft:#FDF1DC; --ok:#16754A; --ok-soft:#E3F4EA;
+  --bar-p:#0E6B5B; --bar-f:#8CC3B6;
+  --font:"Segoe UI","Tahoma","Arial",sans-serif;
+  --r:8px; color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#0E1513; --surface:#151F1C; --sunk:#1B2824; --ink:#E4EEEA; --muted:#93A6A0; --line:#2A3A35;
+  --accent:#4FB8A1; --accent-ink:#06120F; --accent-soft:#17362F;
+  --danger:#F2867B; --danger-soft:#3A1A17; --warn:#E9B25C; --warn-soft:#352812; --ok:#6BCB95; --ok-soft:#14301F;
+  --bar-p:#4FB8A1; --bar-f:#2A6458; color-scheme:dark}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.6}
+.num,td.n,.kpi b{font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate}
+h1,h2,h3{margin:0;font-weight:600}
+h1{font-size:19px} h2{font-size:16px} h3{font-size:14px}
+.app{display:grid;grid-template-columns:210px 1fr;min-height:100vh}
+aside{background:var(--surface);border-inline-end:1px solid var(--line);padding:18px 10px;display:flex;flex-direction:column;gap:4px;position:sticky;top:0;height:100vh}
+aside .brand{padding:0 10px 14px;border-bottom:1px solid var(--line);margin-bottom:8px}
+aside .brand small{display:block;color:var(--muted);font-size:12px}
+aside button{border:0;background:none;font:inherit;color:var(--ink);text-align:right;padding:9px 12px;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:space-between}
+aside button:hover{background:var(--sunk)}
+aside button[aria-current="true"]{background:var(--accent-soft);color:var(--accent);font-weight:600}
+aside .sep{height:1px;background:var(--line);margin:8px 4px}
+aside .foot{margin-top:auto;font-size:11.5px;color:var(--muted);padding:0 10px;word-break:break-all}
+.cnt{min-width:20px;padding:0 6px;border-radius:10px;background:var(--danger);color:#fff;font-size:11px;line-height:18px;text-align:center}
+main{padding:20px 24px 48px;display:flex;flex-direction:column;gap:18px;min-width:0}
+button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+section.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.ph{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.ph p{margin:0;color:var(--muted);font-size:13px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:18px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.kpi{background:var(--surface);padding:14px 16px;display:flex;flex-direction:column;gap:2px}
+.kpi span{color:var(--muted);font-size:12.5px}
+.kpi b{font-size:20px;font-weight:600;text-align:right}
+.kpi em{font-style:normal;font-size:12px;color:var(--muted)}
+.kpi.bad b{color:var(--danger)} .kpi.warn b{color:var(--warn)}
+.alerts{display:flex;flex-direction:column;gap:8px}
+.alert{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:6px;border-inline-start:4px solid;font-size:13.5px}
+.alert.bad{background:var(--danger-soft);border-color:var(--danger)}
+.alert.warn{background:var(--warn-soft);border-color:var(--warn)}
+.alert.info{background:var(--accent-soft);border-color:var(--accent)}
+.alert button{margin-inline-start:auto}
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:6px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{background:var(--sunk);color:var(--muted);font-weight:500;text-align:right;padding:8px 10px;white-space:nowrap;font-size:12.5px}
+td{padding:7px 10px;border-top:1px solid var(--line);vertical-align:middle}
+td.n,th.n{text-align:left;white-space:nowrap}
+tr.tot td{font-weight:600;background:var(--sunk)}
+tr.click{cursor:pointer} tr.click:hover td{background:var(--sunk)}
+tr.open-row td{background:var(--accent-soft)}
+.pill{display:inline-block;padding:1px 9px;border-radius:12px;font-size:12px;white-space:nowrap;font-weight:500}
+.p-bad{background:var(--danger-soft);color:var(--danger)} .p-warn{background:var(--warn-soft);color:var(--warn)}
+.p-ok{background:var(--ok-soft);color:var(--ok)} .p-mut{background:var(--sunk);color:var(--muted)} .p-acc{background:var(--accent-soft);color:var(--accent)}
+.meter{height:8px;background:var(--sunk);border-radius:4px;overflow:hidden;min-width:90px}
+.meter i{display:block;height:100%;background:var(--accent);border-radius:4px}
+.meter.warn i{background:var(--warn)} .meter.bad i{background:var(--danger)}
+.btn{font:inherit;font-weight:500;border-radius:6px;padding:6px 14px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--accent)}
+.btn.pri{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.sm{padding:2px 10px;font-size:12.5px}
+.btn.dng{color:var(--danger);border-color:var(--danger)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+form,.form{display:flex;flex-direction:column;gap:16px}
+fieldset{border:1px solid var(--line);border-radius:6px;padding:12px 14px 14px;margin:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;min-width:0}
+legend{font-weight:600;padding:0 6px;font-size:13.5px}
+label.f,.f{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--muted);min-width:0}
+.f.wide{grid-column:1/-1}
+input,select,textarea{font:inherit;font-size:13.5px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:6px 9px;width:100%;min-width:0}
+input[type=number],input[type=date],input.ltr{direction:ltr;text-align:right}
+input[type=checkbox],input[type=radio]{width:auto}
+textarea{min-height:100px;direction:ltr;text-align:left;font-family:Consolas,monospace;font-size:12.5px}
+.seg{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;width:fit-content;max-width:100%;flex-wrap:wrap}
+.seg label{padding:5px 12px;cursor:pointer;font-size:13px;color:var(--ink);display:flex;gap:6px;align-items:center}
+.seg input{position:absolute;opacity:0;width:1px;height:1px}
+.seg label:has(input:checked){background:var(--accent);color:var(--accent-ink)}
+.seg label:has(input:disabled){opacity:.4;cursor:not-allowed;text-decoration:line-through}
+.chk{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--ink)}
+.note{font-size:12.5px;color:var(--muted);margin:0}
+.calc{background:var(--sunk);border-radius:6px;padding:12px 14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.calc div{display:flex;flex-direction:column}
+.calc span{font-size:12px;color:var(--muted)} .calc b{font-weight:600}
+.msg{padding:9px 12px;border-radius:6px;font-size:13.5px}
+.msg.ok{background:var(--ok-soft);color:var(--ok)} .msg.bad{background:var(--danger-soft);color:var(--danger)} .msg.warn{background:var(--warn-soft);color:var(--warn)}
+.msgs{display:flex;flex-direction:column;gap:6px}
+.empty{padding:28px;text-align:center;color:var(--muted)}
+.detail{display:flex;flex-direction:column;gap:12px;padding:6px 2px 10px}
+.chart svg{width:100%;height:auto;display:block}
+.chart text{fill:var(--muted);font-size:11px;font-family:var(--font)}
+.chart .gl{stroke:var(--line)}
+.legend{display:flex;gap:16px;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-inline-end:5px;vertical-align:middle}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 18px;border-radius:6px;font-size:13.5px;z-index:20}
+.muted{color:var(--muted)}
+.bankbar{display:flex;gap:8px;flex-wrap:wrap}
+.bankcard{border:1px solid var(--line);border-radius:8px;padding:10px 14px;background:var(--surface);cursor:pointer;min-width:170px;text-align:right;font:inherit;color:var(--ink);display:flex;flex-direction:column;gap:2px}
+.bankcard[aria-current="true"]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.bankcard b{font-size:14.5px} .bankcard span{font-size:12px;color:var(--muted)}
+.bankcard.off{opacity:.55}
+.fac{border:1px solid var(--line);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:10px;background:var(--bg)}
+.fac.off{opacity:.6}
+.fac .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
+.fac h4{margin:0;font-size:13px;color:var(--muted);font-weight:600;grid-column:1/-1;border-top:1px dashed var(--line);padding-top:8px}
+.listedit td input,.listedit td select{min-width:90px}
+details summary{cursor:pointer;color:var(--accent);font-size:13px}
+.log{font-size:12.5px;color:var(--muted);display:flex;flex-direction:column;gap:6px;max-height:260px;overflow:auto}
+.log div{border-inline-start:2px solid var(--line);padding-inline-start:8px}
+.stickybar{position:sticky;bottom:0;background:var(--surface);border-top:1px solid var(--line);padding:10px 0 2px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <div class="brand"><h1>إدارة التسهيلات</h1><small id="company"></small><small id="today"></small></div>
+    <nav id="nav" style="display:flex;flex-direction:column;gap:2px">
+      <button data-v="dash" aria-current="true">لوحة المتابعة</button>
+      <button data-v="due">الاستحقاقات والتنبيهات<span class="cnt" id="dueCnt" hidden></span></button>
+      <button data-v="new">قرض / تمويل جديد</button>
+      <button data-v="pay">تسجيل سداد</button>
+      <button data-v="loans">سجل القروض</button>
+      <div class="sep"></div>
+      <button data-v="banks">البنوك والشروط</button>
+      <button data-v="settings">الإعدادات</button>
+    </nav>
+    <div class="foot" id="foot"></div>
+  </aside>
+  <main id="view"><section class="panel"><div class="empty">جاري تحميل البيانات…</div></section></main>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+/* ======================= state & helpers ======================= */
+const DEF={companyName:'',alertDays:30,urgentDays:7,renewalAlertDays:60,utilWarn:90,ladderMonths:6,notifyOnStart:true,
+  currencies:[{code:'SAR',name:'ريال سعودي',rate:1,base:true},{code:'USD',name:'دولار أمريكي',rate:3.75}],
+  benchmarks:[],weekendDays:[5,6],holidays:[],shiftRule:'next',paymentMethods:['تحويل بنكي'],customFields:[],
+  facilityTypes:[{id:'short',name:'تمويل قصير الأجل',behavior:'short'},{id:'lc',name:'اعتمادات مستندية',behavior:'lc'},{id:'lcf',name:'تمويل اعتمادات',behavior:'lcf'},{id:'long',name:'قرض طويل الأجل',behavior:'long'}]};
+const BEH={short:'تمويل / قرض قصير',long:'قرض طويل الأجل',lc:'اعتماد مستندي',lcf:'تمويل اعتماد'};
+const STYLE={conventional:'تقليدي (فائدة)',murabaha:'مرابحة',tawarruq:'تورق',ijara:'إجارة'};
+const RATE={manual:'يدوي من كشف البنك',fixed:'نسبة ثابتة',benchmark:'مؤشر + هامش (سايبور…)'};
+const SHIFT={next:'أول يوم عمل بعده',prev:'آخر يوم عمل قبله',none:'بدون ترحيل'};
+const WD=['الأحد','الإثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+const S={loans:[],banks:[],settings:{...DEF},facs:[],user:'',dataDir:'',view:'dash',
+  dueMode:'period',dueDays:null,dueMonth:null,dueBank:'',openLoan:null,lf:{bank:'',status:'active',term:'',q:''},
+  selBank:null,bankEdit:null,bankDirty:false,setEdit:null,setDirty:false,pm:null,nlPrefill:null,notified:false};
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const r2=n=>Math.round((+n||0)*100)/100;
+const fmt=(n,d=2)=>(+n||0).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+const fmt0=n=>fmt(n,0);
+const pad=n=>String(n).padStart(2,'0');
+const todayStr=()=>{const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
+const P=s=>{const [y,m,d]=s.split('-').map(Number);return Date.UTC(y,m-1,d)};
+const D=t=>{const d=new Date(t);return d.getUTCFullYear()+'-'+pad(d.getUTCMonth()+1)+'-'+pad(d.getUTCDate())};
+const days=(a,b)=>Math.round((P(b)-P(a))/864e5);
+const addDays=(s,n)=>D(P(s)+n*864e5);
+function addMonths(s,n){const [y,m,d]=s.split('-').map(Number);const t=new Date(Date.UTC(y,m-1+n,1));const last=new Date(Date.UTC(t.getUTCFullYear(),t.getUTCMonth()+1,0)).getUTCDate();t.setUTCDate(Math.min(d,last));return D(t)}
+const fmtD=s=>s?s.split('-').reverse().join('/'):'—';
+const AR_M=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+const clone=o=>JSON.parse(JSON.stringify(o));
+const rid=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+function toast(t){const e=$('#toast');e.textContent=t;e.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>e.hidden=true,2800)}
+
+/* ---- lookups ---- */
+const bankById=id=>S.banks.find(b=>b.id===id);
+const facById=id=>S.facs.find(f=>f.id===id);
+const typeById=id=>S.settings.facilityTypes.find(t=>t.id===id);
+const behaviorOf=typeId=>typeById(typeId)?.behavior||'short';
+const cur=code=>S.settings.currencies.find(c=>c.code===code);
+const curName=code=>cur(code)?.name||code;
+const baseCur=()=>S.settings.currencies.find(c=>c.base)?.code||'SAR';
+function benchRate(id,at){const b=S.settings.benchmarks.find(x=>x.id===id);if(!b)return null;const h=(b.history||[]).filter(x=>!at||x.date<=at).sort((a,c)=>a.date<c.date?-1:1);return h.length?h[h.length-1]:null}
+function shiftDate(s,bank){
+  const rule=(bank&&bank.shiftRule&&bank.shiftRule!=='default')?bank.shiftRule:S.settings.shiftRule;if(rule==='none')return s;
+  const wk=new Set(S.settings.weekendDays||[]),hol=new Set((S.settings.holidays||[]).map(h=>h.date));let t=P(s);
+  for(let i=0;i<30;i++){const d=D(t);if(!wk.has(new Date(t).getUTCDay())&&!hol.has(d))return d;t+=(rule==='prev'?-1:1)*864e5}return s;
+}
+
+/* ---- data in/out ---- */
+function applyData(d){
+  S.settings={...DEF,...(d.settings||{})};
+  S.banks=Object.entries(d.banks||{}).map(([id,v])=>({id,...v})).sort((a,b)=>(a.order||99)-(b.order||99));
+  S.facs=S.banks.flatMap(b=>(b.facilities||[]).map(f=>({...f,bankId:b.id,bank:b.name,kind:f.label,parent:f.parentId,behavior:behaviorOf(f.typeId),bankActive:b.active!==false})));
+  S.loans=Object.entries(d.loans||{}).map(([id,v])=>{const l={id,...v};const b=bankById(l.bankId);if(b)l.bank=b.name;const f=facById(l.facilityId);if(f){l.facility=f.label}return l});
+}
+async function save(ops,okMsg){
+  try{const d=await window.api.batch(ops);applyData(d);if(okMsg)toast(okMsg);return true}
+  catch(e){toast('تعذّر الحفظ: '+e.message);return false}
+}
+const putLoan=(id,doc)=>{const c=clone(doc);delete c.id;return {col:'loans',id,doc:c}};
+
+/* ---- loan math ---- */
+const remP=l=>Math.max(0,r2(l.principal-(l.paidPrincipal||0)));
+const remF=l=>Math.max(0,r2(l.profit-(l.paidProfit||0)));
+function lineState(l){if(remP(l)<=0.005&&remF(l)<=0.005)return'paid';if((l.paidPrincipal||0)+(l.paidProfit||0)>0)return'partial';return'open'}
+const outstanding=loan=>r2(loan.lines.reduce((a,l)=>a+remP(l),0));
+const remProfit=loan=>r2(loan.lines.reduce((a,l)=>a+remF(l),0));
+const isActive=loan=>loan.lines.some(l=>lineState(l)!=='paid');
+const nextLine=loan=>loan.lines.filter(l=>lineState(l)!=='paid').sort((a,b)=>a.due<b.due?-1:1)[0];
+const totalPrincipal=loan=>r2(loan.lines.reduce((a,l)=>a+l.principal,0));
+const totalProfit=loan=>r2(loan.lines.reduce((a,l)=>a+l.profit+(l.waived||0),0));
+function impliedRate(start,amount,lines){
+  if(!start||!amount||!lines.length)return null;
+  const cf=lines.filter(l=>l.due).map(l=>({t:days(start,l.due)/(365/12),v:l.principal+l.profit+(l.waived||0)}));
+  if(cf.some(c=>c.t<=0))return null;
+  const f=r=>cf.reduce((a,c)=>a+c.v*Math.pow(1+r/12,-c.t),0)-amount;
+  let lo=0,hi=1;if(f(lo)<0)return 0;if(f(hi)>0)return null;
+  for(let i=0;i<80;i++){const m=(lo+hi)/2;f(m)>0?lo=m:hi=m}return (lo+hi)/2;
+}
+const loanRate=loan=>impliedRate(loan.start,totalPrincipal(loan),loan.lines);
+function limitStats(){
+  const m={};S.facs.forEach(l=>m[l.id]={...l,own:0,used:0,avail:0,children:[]});
+  S.loans.forEach(ln=>{if(ln.limitId&&m[ln.limitId])m[ln.limitId].own+=outstanding(ln)});
+  Object.values(m).forEach(l=>{if(l.parent&&m[l.parent])m[l.parent].children.push(l.id)});
+  Object.values(m).forEach(l=>{l.used=l.own+l.children.reduce((a,c)=>a+m[c].own,0);l.avail=l.limit-l.used});
+  Object.values(m).forEach(l=>{if(l.parent&&m[l.parent]){l.avail=Math.min(l.limit-l.own,m[l.parent].avail);l.used=l.own}});
+  return m;
+}
+const limitLabel=l=>l?`${l.bank} — ${l.label}`:'بدون حد';
+function dueLines(filter){
+  const out=[];S.loans.forEach(loan=>loan.lines.forEach((l,i)=>{if(lineState(l)==='paid'||!l.due)return;if(filter(l,loan))out.push({loan,l,i})}));
+  return out.sort((a,b)=>a.l.due<b.l.due?-1:a.l.due>b.l.due?1:0);
+}
+function urgency(due){const d=days(todayStr(),due);if(d<0)return['p-bad','متأخر '+(-d)+' يوم'];if(d===0)return['p-bad','اليوم'];if(d<=S.settings.urgentDays)return['p-warn','بعد '+d+' يوم'];return['p-mut','بعد '+d+' يوم']}
+function renewalAlerts(){const t=todayStr();return S.banks.filter(b=>b.active!==false&&b.renewalDate).map(b=>({b,d:days(t,b.renewalDate)})).filter(x=>x.d<=S.settings.renewalAlertDays).sort((a,b)=>a.d-b.d)}
+
+/* ======================= shell ======================= */
+function setView(v){
+  if(S.view==='banks'&&S.bankDirty&&v!=='banks'&&!setView.force){toast('لديك تعديلات غير محفوظة على البنك. احفظها أو اضغط «تجاهل التعديلات».');return}
+  if(S.view==='settings'&&S.setDirty&&v!=='settings'&&!setView.force){toast('لديك إعدادات غير محفوظة. احفظها أو اضغط «تجاهل التعديلات».');return}
+  S.view=v;document.querySelectorAll('#nav button').forEach(b=>b.setAttribute('aria-current',b.dataset.v===v));render();window.scrollTo(0,0)}
+$('#nav').addEventListener('click',e=>{const b=e.target.closest('button[data-v]');if(b)setView(b.dataset.v)});
+function chrome(){
+  $('#today').textContent='اليوم '+fmtD(todayStr());$('#company').textContent=S.settings.companyName||'';
+  const t=todayStr(),n=dueLines(l=>days(t,l.due)<=S.settings.urgentDays).length;const c=$('#dueCnt');c.hidden=!n;c.textContent=n;
+  $('#foot').innerHTML=`المستخدم: ${esc(S.user)}<br>مجلد البيانات:<br>${esc(S.dataDir)}`;
+}
+function render(){chrome();({dash:vDash,due:vDue,new:vNew,pay:vPay,loans:vLoans,banks:vBanks,settings:vSettings})[S.view]()}
+function refresh(){
+  chrome();
+  if(S.view==='new'&&$('#nlForm')){nlUpdate();return}
+  if(S.view==='pay'&&$('#pmForm')){pmFillLoans();pmUpdate();return}
+  if(S.view==='banks'&&S.bankDirty)return;
+  if(S.view==='settings'&&S.setDirty)return;
+  if(S.view==='banks'){S.bankEdit=null}
+  if(S.view==='settings'){S.setEdit=null}
+  render();
+}
+async function exportCSV(name,rows){
+  const csv='﻿'+rows.map(r=>r.map(c=>{const s=String(c??'');return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}).join(',')).join('\r\n');
+  try{if(await window.api.saveFile(name,csv))toast('تم حفظ الملف')}catch(e){toast('تعذّر حفظ الملف: '+e.message)}
+}
+
+/* ======================= dashboard ======================= */
+function vDash(){
+  if(!S.banks.length&&!S.loans.length){$('#view').innerHTML=`<section class="panel"><div class="empty" style="display:flex;flex-direction:column;gap:12px;align-items:center"><h2>لا توجد بيانات بعد</h2><p class="note">ابدأ باستيراد بياناتك من نموذج Excel، أو أضف البنوك والتسهيلات يدوياً.</p><div class="row"><button class="btn pri" data-go="settings">استيراد من Excel</button><button class="btn" data-go="banks">إضافة بنك يدوياً</button></div></div></section>`;return}
+  const L=limitStats(),t=todayStr(),st=S.settings;
+  const limited=Object.values(L).filter(l=>!l.noLimit&&l.active!==false);
+  const top=limited.filter(l=>!l.parent);
+  const tLimit=top.reduce((a,l)=>a+l.limit,0),tUsed=top.reduce((a,l)=>a+l.used,0),tAvail=top.reduce((a,l)=>a+l.avail,0);
+  const over=dueLines(l=>l.due<t),soon=dueLines(l=>l.due>=t&&days(t,l.due)<=st.alertDays),urgent=soon.filter(x=>days(t,x.l.due)<=st.urgentDays);
+  const sumT=a=>a.reduce((s,x)=>s+remP(x.l)+remF(x.l),0);
+  const longOut=S.loans.filter(l=>l.behavior==='long').reduce((a,l)=>a+outstanding(l),0);
+  const alerts=[];
+  if(over.length)alerts.push(`<div class="alert bad"><div><b>${over.length} استحقاق متأخر</b> بإجمالي <span class="num">${fmt(sumT(over))}</span> لم يُسجَّل سداده.</div><button class="btn sm" data-go="due" data-mode="overdue">عرض</button></div>`);
+  if(urgent.length)alerts.push(`<div class="alert warn"><div><b>${urgent.length} استحقاق خلال ${st.urgentDays} أيام</b> بإجمالي <span class="num">${fmt(sumT(urgent))}</span>.</div><button class="btn sm" data-go="due">عرض</button></div>`);
+  renewalAlerts().forEach(({b,d})=>alerts.push(`<div class="alert ${d<0?'bad':'warn'}"><div><b>تجديد اتفاقية ${esc(b.name)}:</b> ${d<0?'انتهت منذ '+(-d)+' يوم':'تنتهي بعد '+d+' يوم'} (${fmtD(b.renewalDate)}).</div><button class="btn sm" data-bank="${b.id}">فتح البنك</button></div>`));
+  limited.forEach(l=>{const base=l.parent?l.own:l.used,u=l.limit?base/l.limit*100:0;
+    if(l.avail<0)alerts.push(`<div class="alert bad"><div><b>تجاوز الحد:</b> ${esc(limitLabel(l))} مستخدم بنسبة <span class="num">${fmt(u,1)}%</span>، التجاوز <span class="num">${fmt(-l.avail)}</span>.</div></div>`);
+    else if(u>=st.utilWarn)alerts.push(`<div class="alert warn"><div><b>اقتراب من الحد:</b> ${esc(limitLabel(l))} مستخدم بنسبة <span class="num">${fmt(u,1)}%</span>، المتاح <span class="num">${fmt(l.avail)}</span>.</div></div>`)});
+  if(!alerts.length)alerts.push(`<div class="alert info"><div>لا توجد استحقاقات متأخرة أو عاجلة، وكل الحدود ضمن النسبة المحددة.</div></div>`);
+  const rows=limited.map(l=>{const base=l.parent?l.own:l.used,u=l.limit?base/l.limit*100:0,cls=l.avail<0?'bad':u>=st.utilWarn?'warn':'';
+    const nx=dueLines((ln,loan)=>loan.limitId===l.id||(L[loan.limitId]&&L[loan.limitId].parent===l.id))[0];
+    return `<tr><td>${esc(l.bank)}</td><td>${esc(l.label)} <span class="muted" style="font-size:12px">${esc(typeById(l.typeId)?.name||'')}</span>${l.parent?` <span class="pill p-mut">فرعي من ${esc(L[l.parent]?.label||'')}</span>`:''}</td>
+    <td class="n">${fmt(l.limit)}</td><td class="n">${fmt(base)}</td><td class="n" style="color:${l.avail<0?'var(--danger)':'inherit'}">${fmt(l.avail)}</td>
+    <td><div class="row" style="flex-wrap:nowrap"><div class="meter ${cls}" style="flex:1"><i style="width:${Math.min(100,u)}%"></i></div><span class="num" style="font-size:12px;min-width:44px">${fmt(u,1)}%</span></div></td>
+    <td class="n">${nx?fmtD(nx.l.due):'—'}</td></tr>`}).join('');
+  const nM=Math.min(12,Math.max(3,+st.ladderMonths||6));const months=[];for(let i=0;i<nM;i++)months.push(addMonths(t.slice(0,8)+'01',i).slice(0,7));
+  const lad=months.map(m=>{const ls=dueLines(l=>l.due.slice(0,7)===m&&l.due>=t);return{m,p:ls.reduce((a,x)=>a+remP(x.l),0),f:ls.reduce((a,x)=>a+remF(x.l),0),n:ls.length}});
+  const longs=S.loans.filter(l=>l.behavior==='long');
+  const lrows=longs.map(l=>{const paid=l.lines.reduce((a,x)=>a+(x.paidPrincipal||0)+(x.paidProfit||0),0),pc=l.lines.filter(x=>lineState(x)==='paid').length,nx=nextLine(l);
+    return `<tr class="click" data-loan="${l.id}"><td>${esc(l.bank)}</td><td>${esc(l.name)}</td><td class="n">${fmt(totalPrincipal(l))}</td><td class="n">${fmt(totalProfit(l))}</td><td class="n">${fmt(paid)}</td><td class="n">${fmt(outstanding(l))}</td><td class="n">${fmt(outstanding(l)+remProfit(l))}</td><td class="n">${nx?fmtD(nx.due):'—'}</td><td class="n">${pc}/${l.lines.length}</td></tr>`}).join('');
+  const banks={};S.loans.filter(isActive).forEach(l=>{const b=banks[l.bank]||(banks[l.bank]={out:0,prof:0,w:0,wr:0,n:0});b.out+=outstanding(l);b.prof+=remProfit(l);b.n++;const r=loanRate(l);if(r!=null&&l.behavior!=='long'){b.w+=totalPrincipal(l);b.wr+=r*totalPrincipal(l)}});
+  const crow=Object.entries(banks).sort((a,b)=>b[1].out-a[1].out).map(([k,b])=>`<tr><td>${esc(k)}</td><td class="n">${b.n}</td><td class="n">${fmt(b.out)}</td><td class="n">${fmt(b.prof)}</td><td class="n">${b.w?fmt(b.wr/b.w*100,2)+'%':'—'}</td></tr>`).join('');
+  $('#view').innerHTML=`
+  <div class="kpis">
+    <div class="kpi"><span>إجمالي الحدود الائتمانية</span><b>${fmt0(tLimit)}</b><em>${top.length} حد رئيسي</em></div>
+    <div class="kpi"><span>المستخدم من الحدود</span><b>${fmt0(tUsed)}</b><em>${tLimit?fmt(tUsed/tLimit*100,1):0}% من الإجمالي</em></div>
+    <div class="kpi ${tAvail<0?'bad':''}"><span>المتاح للسحب</span><b>${fmt0(tAvail)}</b><em>${esc(curName(baseCur()))}</em></div>
+    <div class="kpi ${over.length?'bad':''}"><span>متأخر السداد</span><b>${fmt0(sumT(over))}</b><em>${over.length} قسط/قرض</em></div>
+    <div class="kpi ${soon.length?'warn':''}"><span>مستحق خلال ${st.alertDays} يوم</span><b>${fmt0(sumT(soon))}</b><em>${soon.length} قسط/قرض</em></div>
+    <div class="kpi"><span>رصيد القروض الطويلة</span><b>${fmt0(longOut)}</b><em>أصل بدون ربح</em></div>
+  </div>
+  <section class="panel"><div class="ph"><h2>التنبيهات</h2><p>فترة التنبيه ${st.alertDays} يوم، العاجل ${st.urgentDays} أيام، تجديد الاتفاقيات ${st.renewalAlertDays} يوم</p></div><div class="alerts">${alerts.join('')}</div></section>
+  <section class="panel"><div class="ph"><h2>متابعة حدود التسهيلات</h2><p>المستخدم = أصل العمليات القائمة. السداد يعيد المبلغ للمتاح فوراً.</p></div>
+    <div class="tw"><table><thead><tr><th>البنك</th><th>التسهيل</th><th class="n">الحد الائتماني</th><th class="n">المستخدم</th><th class="n">المتاح للسحب</th><th>نسبة الاستخدام</th><th class="n">أقرب استحقاق</th></tr></thead>
+    <tbody>${rows||'<tr><td colspan="7" class="empty">لا توجد حدود. أضفها من «البنوك والشروط».</td></tr>'}<tr class="tot"><td colspan="2">الإجمالي (الحدود الرئيسية)</td><td class="n">${fmt(tLimit)}</td><td class="n">${fmt(tUsed)}</td><td class="n">${fmt(tAvail)}</td><td colspan="2"></td></tr></tbody></table></div></section>
+  <div class="grid2">
+    <section class="panel"><div class="ph"><h2>سلم الاستحقاقات — ${nM} أشهر</h2><div class="legend"><span><i style="background:var(--bar-p)"></i>أصل</span><span><i style="background:var(--bar-f)"></i>ربح</span></div></div>
+      <div class="chart">${ladderSVG(lad)}</div><p class="note">لا يشمل المتأخر.</p></section>
+    <section class="panel"><div class="ph"><h2>تكلفة التمويل حسب البنك</h2><p>القروض القائمة</p></div>
+      <div class="tw"><table><thead><tr><th>البنك</th><th class="n">عدد</th><th class="n">الأصل القائم</th><th class="n">الربح المتبقي</th><th class="n">متوسط النسبة (قصير)</th></tr></thead><tbody>${crow||'<tr><td colspan="5" class="empty">لا توجد قروض قائمة</td></tr>'}</tbody></table></div>
+      <p class="note">النسبة السنوية الفعلية مستنتجة من الأصل والربح والتواريخ، ومرجّحة بمبلغ كل قرض.</p></section>
+  </div>
+  <section class="panel"><div class="ph"><h2>القروض طويلة الأجل</h2><p>اضغط على القرض لعرض جدوله</p></div>
+    <div class="tw"><table><thead><tr><th>البنك</th><th>القرض</th><th class="n">أصل القرض</th><th class="n">الفوائد</th><th class="n">المسدد</th><th class="n">المتبقي بدون ربح</th><th class="n">المتبقي مع الربح</th><th class="n">القسط القادم</th><th class="n">الأقساط</th></tr></thead><tbody>${lrows||'<tr><td colspan="9" class="empty">لا توجد قروض طويلة</td></tr>'}</tbody></table></div></section>`;
+}
+function ladderSVG(lad){
+  const W=620,H=220,l=70,r=10,tp=14,b=34,max=Math.max(1,...lad.map(x=>x.p+x.f));
+  const step=niceStep(max/4),top=Math.ceil(max/step)*step,bw=(W-l-r)/lad.length;const y=v=>tp+(H-tp-b)*(1-v/top);
+  let g='';for(let v=0;v<=top+1;v+=step)g+=`<line class="gl" x1="${l}" x2="${W-r}" y1="${y(v)}" y2="${y(v)}"/><text x="${l-6}" y="${y(v)+4}" text-anchor="end">${short(v)}</text>`;
+  lad.forEach((x,i)=>{const cx=W-r-bw*(i+.5),w=Math.min(46,bw*.6);
+    g+=`<rect x="${cx-w/2}" y="${y(x.p)}" width="${w}" height="${y(0)-y(x.p)}" fill="var(--bar-p)" rx="2"><title>أصل ${fmt(x.p)}</title></rect>`;
+    g+=`<rect x="${cx-w/2}" y="${y(x.p+x.f)}" width="${w}" height="${y(x.p)-y(x.p+x.f)}" fill="var(--bar-f)"><title>ربح ${fmt(x.f)}</title></rect>`;
+    if(x.p+x.f>0)g+=`<text x="${cx}" y="${y(x.p+x.f)-4}" text-anchor="middle" style="fill:var(--ink)">${short(x.p+x.f)}</text>`;
+    g+=`<text x="${cx}" y="${H-b+16}" text-anchor="middle">${AR_M[+x.m.slice(5)-1]}</text><text x="${cx}" y="${H-b+29}" text-anchor="middle">${x.n} استحقاق</text>`});
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="سلم الاستحقاقات">${g}</svg>`;
+}
+function niceStep(x){const p=Math.pow(10,Math.floor(Math.log10(x||1))),n=x/p;return(n<=1?1:n<=2?2:n<=5?5:10)*p}
+function short(v){return v>=1e6?(v/1e6).toFixed(2).replace(/\.?0+$/,'')+'M':v>=1e3?Math.round(v/1e3)+'K':String(Math.round(v))}
+document.addEventListener('click',e=>{
+  const go=e.target.closest('[data-go]');if(go){if(go.dataset.mode)S.dueMode=go.dataset.mode;setView(go.dataset.go);return}
+  const bk=e.target.closest('[data-bank]');if(bk&&S.view==='dash'){S.selBank=bk.dataset.bank;S.bankEdit=null;setView('banks');return}
+  const tr=e.target.closest('tr[data-loan]');if(tr&&S.view==='dash'){S.openLoan=tr.dataset.loan;S.lf={bank:'',status:'all',term:'',q:''};setView('loans')}
+});
+
+/* ======================= due list ======================= */
+function vDue(){
+  const st=S.settings,t=todayStr();if(S.dueDays==null)S.dueDays=st.alertDays;if(!S.dueMonth)S.dueMonth=t.slice(0,7);
+  const banks=[...new Set(S.loans.map(l=>l.bank))];
+  const list=dueLines((l,loan)=>(!S.dueBank||loan.bank===S.dueBank)&&(S.dueMode==='period'?days(t,l.due)<=S.dueDays:S.dueMode==='overdue'?l.due<t:l.due.slice(0,7)===S.dueMonth));
+  S.dueList=list;const tp=list.reduce((a,x)=>a+remP(x.l),0),tf=list.reduce((a,x)=>a+remF(x.l),0);
+  const rows=list.map(x=>{const [c,txt]=urgency(x.l.due);const n=x.loan.lines.length>1?` <span class="muted">(${x.i+1}/${x.loan.lines.length})</span>`:'';
+    return `<tr><td class="n">${fmtD(x.l.due)}</td><td><span class="pill ${c}">${txt}</span>${lineState(x.l)==='partial'?' <span class="pill p-acc">مسدد جزئي</span>':''}</td><td>${esc(x.loan.bank)}</td><td>${esc(x.loan.name)}${n}</td><td>${esc(x.loan.facility)}</td>
+    <td class="n">${fmt(remP(x.l))}</td><td class="n">${fmt(remF(x.l))}</td><td class="n"><b>${fmt(remP(x.l)+remF(x.l))}</b></td><td><button class="btn sm" data-pay="${x.loan.id}" data-line="${x.i}">سداد</button></td></tr>`}).join('');
+  $('#view').innerHTML=`<section class="panel">
+   <div class="ph"><h2>الاستحقاقات والتنبيهات</h2><button class="btn sm" id="dueExport">تصدير Excel (CSV)</button></div>
+   <div class="row">
+     <div class="seg"><label><input type="radio" name="dm" value="period" ${S.dueMode==='period'?'checked':''}>خلال فترة</label><label><input type="radio" name="dm" value="month" ${S.dueMode==='month'?'checked':''}>شهر محدد</label><label><input type="radio" name="dm" value="overdue" ${S.dueMode==='overdue'?'checked':''}>المتأخر فقط</label></div>
+     ${S.dueMode==='period'?`<label class="row" style="gap:6px">خلال <input id="dueDays" type="number" min="1" max="730" value="${S.dueDays}" style="width:80px"> يوم (يشمل المتأخر)</label>`:''}
+     ${S.dueMode==='month'?`<input id="dueMonth" type="month" value="${S.dueMonth}" style="width:170px">`:''}
+     <select id="dueBank" style="width:160px"><option value="">كل البنوك</option>${banks.map(b=>`<option ${b===S.dueBank?'selected':''}>${esc(b)}</option>`).join('')}</select>
+   </div>
+   <div class="tw"><table><thead><tr><th class="n">تاريخ الاستحقاق</th><th>الحالة</th><th>البنك</th><th>البيان</th><th>التسهيل</th><th class="n">أصل القرض</th><th class="n">الربح</th><th class="n">الإجمالي</th><th></th></tr></thead>
+   <tbody>${rows||'<tr><td colspan="9" class="empty">لا توجد استحقاقات غير مسددة في هذه الفترة.</td></tr>'}
+   ${list.length?`<tr class="tot"><td colspan="5">الإجمالي (${list.length})</td><td class="n">${fmt(tp)}</td><td class="n">${fmt(tf)}</td><td class="n">${fmt(tp+tf)}</td><td></td></tr>`:''}</tbody></table></div>
+   <p class="note">الأصفر: خلال ${st.urgentDays} أيام. الأحمر: متأخر أو اليوم. الفترات الافتراضية من الإعدادات.</p></section>`;
+}
+document.addEventListener('change',e=>{
+  if(S.view!=='due')return;
+  if(e.target.name==='dm'){S.dueMode=e.target.value;vDue()}
+  else if(e.target.id==='dueDays'){S.dueDays=Math.max(1,+e.target.value||S.settings.alertDays);vDue()}
+  else if(e.target.id==='dueMonth'){S.dueMonth=e.target.value;vDue()}
+  else if(e.target.id==='dueBank'){S.dueBank=e.target.value;vDue()}
+});
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-pay]');if(b){S.pm={loan:b.dataset.pay,line:+b.dataset.line};setView('pay');return}
+  if(e.target.id==='dueExport'){const h=['تاريخ الاستحقاق','البنك','البيان','التسهيل','أصل القرض','الربح','الإجمالي','الحالة'];
+    exportCSV('استحقاقات-'+todayStr()+'.csv',[h,...S.dueList.map(x=>[x.l.due,x.loan.bank,x.loan.name,x.loan.facility,r2(remP(x.l)),r2(remF(x.l)),r2(remP(x.l)+remF(x.l)),urgency(x.l.due)[1]])])}
+});
+
+/* ======================= new loan ======================= */
+function vNew(){
+  const p=S.nlPrefill||{};S.nlPrefill=null;S.nlConvert=p.convertedFrom||null;
+  const banks=S.banks.filter(b=>b.active!==false&&(b.facilities||[]).some(f=>f.active!==false));
+  if(!banks.length){$('#view').innerHTML='<section class="panel"><div class="empty">لا توجد بنوك أو تسهيلات مفعّلة. أضفها من «البنوك والشروط».</div></section>';return}
+  const bankId=p.bankId||banks[0].id;
+  const cf=S.settings.customFields||[];
+  $('#view').innerHTML=`<section class="panel"><div class="ph"><h2>تسجيل قرض / تمويل جديد</h2><p>اختيار التسهيل يعبّئ الشروط الافتراضية من «البنوك والشروط»، ويمكنك تعديلها لهذا القرض.</p></div>
+  ${p.convertedFrom?`<div class="msg warn">تحويل اعتماد إلى تمويل اعتماد: سيُربط القرض الجديد بالاعتماد «${esc(p.fromName)}».</div>`:''}
+  <form id="nlForm" autocomplete="off">
+   <fieldset><legend>التسهيل</legend>
+     <label class="f">البنك<select id="nl-bank">${banks.map(b=>`<option value="${b.id}" ${b.id===bankId?'selected':''}>${esc(b.name)}</option>`).join('')}</select></label>
+     <label class="f" style="grid-column:span 2">التسهيل (يخصم من حده)<select id="nl-fac"></select></label>
+     <div class="f" id="nl-terms" style="grid-column:1/-1"></div>
+     <label class="f wide">البيان<input id="nl-name" placeholder="مثال: قرض الأهلي 26009" value="${esc(p.name||'')}"></label>
+     <label class="f">رقم حساب التمويل / المرجع<input id="nl-ref" class="ltr"></label>
+     <label class="f" id="w-master">رقم الاعتماد الرئيسي<input id="nl-master" class="ltr" placeholder="ILC-…"></label>
+   </fieldset>
+   <fieldset><legend>المبلغ والتواريخ</legend>
+     <label class="f">العملة<select id="nl-cur">${S.settings.currencies.map(c=>`<option value="${esc(c.code)}">${esc(c.name)}</option>`).join('')}</select></label>
+     <label class="f">المبلغ<input id="nl-amount" type="number" step="0.01" min="0" value="${p.amount||''}" placeholder="0.00"></label>
+     <label class="f" id="w-fx">سعر الصرف<input id="nl-fx" type="number" step="0.0001"></label>
+     <label class="f">تاريخ البداية<input id="nl-start" type="date" value="${p.start||todayStr()}"></label>
+     <div class="f wide"><span>طريقة السداد</span>
+       <div class="seg"><label><input type="radio" name="nl-repay" value="bullet" checked>دفعة واحدة في نهاية المدة</label><label><input type="radio" name="nl-repay" value="installments">أقساط شهرية</label></div></div>
+     <div class="f wide"><span>تاريخ الاستحقاق</span>
+       <div class="seg"><label><input type="radio" name="nl-sched" value="term" checked>محسوب من المدة</label><label><input type="radio" name="nl-sched" value="manual">يدوي</label><label><input type="radio" name="nl-sched" value="bank">جدول البنك (لصق)</label></div></div>
+     <label class="f" id="w-period">المدة<span class="row" style="flex-wrap:nowrap"><input id="nl-period" type="number" min="1" value="6" style="flex:1"><select id="nl-unit" style="width:90px"><option value="m">شهر</option><option value="d">يوم</option></select></span></label>
+     <label class="f" id="w-due">تاريخ الاستحقاق<input id="nl-due" type="date"></label>
+     <label class="chk" id="w-shift"><input type="checkbox" id="nl-shift" checked><span id="nl-shiftTxt">ترحيل العطل حسب الإعدادات</span></label>
+     <label class="f wide" id="w-paste">الصق جدول البنك من Excel: تاريخ الاستحقاق، أصل القسط، الربح (سطر لكل قسط)<textarea id="nl-paste" placeholder="2026-11-29	14760.84	120.55&#10;29/12/2026	14880.10	98.20"></textarea></label>
+   </fieldset>
+   <fieldset id="fs-profit"><legend>الربح / الفائدة</legend>
+     <div class="f wide"><span>طريقة احتساب الربح</span>
+       <div class="seg"><label><input type="radio" name="nl-pm" value="amount" checked>مبلغ الربح من كشف البنك</label><label><input type="radio" name="nl-pm" value="rate">احسب من النسبة</label><label><input type="radio" name="nl-pm" value="none">بدون ربح</label></div></div>
+     <label class="f" id="w-profit">إجمالي الربح<input id="nl-profit" type="number" step="0.01" min="0" placeholder="0.00"></label>
+     <label class="f" id="w-rate">النسبة السنوية %<input id="nl-rate" type="number" step="0.001" min="0"></label>
+     <label class="f" id="w-basis">أساس الأيام<select id="nl-basis"><option value="360">فعلي/360</option><option value="365">فعلي/365</option></select></label>
+     <label class="f" id="w-method">نوع القسط<select id="nl-method"><option value="equal">أصل متساوٍ + ربح متناقص</option><option value="annuity">قسط ثابت (أصل + ربح)</option></select></label>
+   </fieldset>
+   <fieldset><legend>رسوم وهامش</legend>
+     <label class="f">الرسوم والعمولات (لا تؤثر على الحد)<input id="nl-fees" type="number" step="0.01" min="0"></label>
+     <label class="f" id="w-cm">الهامش النقدي %<input id="nl-cm" type="number" step="0.01" min="0"></label>
+     <div class="f" id="nl-feesTxt" style="grid-column:span 2"></div>
+   </fieldset>
+   ${cf.length?`<fieldset id="fs-custom"><legend>حقول إضافية</legend>${cf.map(f=>`<label class="f" data-cf="${f.id}" data-applies="${f.appliesTo||'all'}">${esc(f.name)}${f.required?' *':''}${cfInput(f,'nlc-'+f.id)}</label>`).join('')}</fieldset>`:''}
+   <label class="f">ملاحظات<input id="nl-notes"></label>
+   <div class="calc" id="nl-calc"></div>
+   <div class="msgs" id="nl-msgs"></div>
+   <div><h3 style="margin-bottom:8px">معاينة جدول السداد</h3><div class="tw" id="nl-preview"></div></div>
+   <div id="nl-err"></div>
+   <div class="row"><button class="btn pri" type="submit" id="nl-save">حفظ القرض</button><button class="btn" type="button" id="nl-reset">مسح النموذج</button></div>
+  </form></section>`;
+  nlFillFacs(p.facilityId);applyFacDefaults();
+  if(p.amount)$('#nl-amount').value=p.amount;
+  nlUpdate();
+}
+function cfInput(f,id,val=''){
+  if(f.type==='list')return `<select id="${id}"><option value=""></option>${(f.options||[]).map(o=>`<option ${o===val?'selected':''}>${esc(o)}</option>`).join('')}</select>`;
+  return `<input id="${id}" type="${f.type==='number'?'number':f.type==='date'?'date':'text'}" value="${esc(val)}" ${f.type==='number'?'step="any"':''}>`;
+}
+function nlFillFacs(pick){
+  const bank=bankById($('#nl-bank').value),L=limitStats(),sel=$('#nl-fac');
+  const fs=(bank?.facilities||[]).filter(f=>f.active!==false);
+  sel.innerHTML=fs.map(f=>`<option value="${f.id}">${esc(f.label)} — ${esc(typeById(f.typeId)?.name||'')}${f.noLimit?'':' — متاح '+fmt0(L[f.id]?.avail)}</option>`).join('');
+  if(pick&&fs.some(f=>f.id===pick))sel.value=pick;
+}
+function applyFacDefaults(){
+  const f=facById($('#nl-fac').value);if(!f)return;const bank=bankById(f.bankId);
+  const c=f.currency||baseCur();$('#nl-cur').value=c;$('#nl-fx').value=cur(c)?.rate||1;
+  const rp=f.repay&&f.repay.length?f.repay:['bullet','installments'];
+  document.querySelectorAll('input[name="nl-repay"]').forEach(r=>{r.disabled=!rp.includes(r.value)});
+  const def=f.behavior==='long'?'installments':rp[0];document.querySelector(`input[name="nl-repay"][value="${def}"]`).checked=true;
+  if(f.behavior==='lc'&&f.lcDays){$('#nl-period').value=f.lcDays;$('#nl-unit').value='d'}
+  else{$('#nl-period').value=f.defaultTenor||6;$('#nl-unit').value=f.defaultUnit||'m'}
+  const basis=f.basis||bank?.basis||360;$('#nl-basis').value=String(basis);$('#nl-method').value=f.method||'equal';
+  let pm='amount',rate='';
+  if(f.rateType==='fixed'&&f.rate!=null&&f.rate!==''){pm='rate';rate=f.rate}
+  else if(f.rateType==='benchmark'){const b=benchRate(f.benchmarkId,$('#nl-start').value);if(b){pm='rate';rate=r2((+b.rate+(+f.margin||0))*1000)/1000}}
+  document.querySelector(`input[name="nl-pm"][value="${pm}"]`).checked=true;$('#nl-rate').value=rate;
+  $('#nl-cm').value=f.cashMarginPct??'';
+  const rule=(bank?.shiftRule&&bank.shiftRule!=='default')?bank.shiftRule:S.settings.shiftRule;
+  $('#nl-shift').checked=rule!=='none';$('#nl-shiftTxt').textContent=rule==='none'?'بدون ترحيل للعطل (حسب شروط البنك)':'ترحيل العطل: '+SHIFT[rule];
+  S.nlFeesAuto=true;
+}
+function facFees(f,amt){return (f?.fees||[]).map(x=>({name:x.name,amount:r2(x.kind==='fixed'?+x.value||0:amt*(+x.value||0)/100),desc:x.kind==='fixed'?'مبلغ ثابت':fmt(+x.value||0,3)+'%'}))}
+function nlRead(){
+  const v=id=>$('#'+id)?.value,r=n=>document.querySelector(`input[name="${n}"]:checked`)?.value;
+  return{bankId:v('nl-bank'),facId:v('nl-fac'),name:v('nl-name').trim(),ref:v('nl-ref').trim(),master:v('nl-master').trim(),
+    cur:v('nl-cur'),amount:+v('nl-amount')||0,fx:+v('nl-fx')||1,start:v('nl-start'),repay:r('nl-repay'),sched:r('nl-sched'),period:Math.max(1,+v('nl-period')||1),unit:v('nl-unit'),
+    due:v('nl-due'),shift:$('#nl-shift').checked,paste:v('nl-paste'),pm:r('nl-pm'),profit:+v('nl-profit')||0,rate:(+v('nl-rate')||0)/100,basis:+v('nl-basis'),method:v('nl-method'),
+    fees:+v('nl-fees')||0,cm:v('nl-cm')===''?null:+v('nl-cm'),notes:v('nl-notes').trim()};
+}
+function parsePaste(txt){
+  const out=[],bad=[];txt.split(/\r?\n/).forEach((ln,i)=>{ln=ln.trim();if(!ln)return;const c=ln.split(/[\t;]+|\s+/).map(s=>s.trim()).filter(Boolean);
+    if(c.length<2){bad.push(i+1);return}let d=c[0],m;
+    if(m=d.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})$/))d=`${m[1]}-${pad(m[2])}-${pad(m[3])}`;else if(m=d.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})$/))d=`${m[3]}-${pad(m[2])}-${pad(m[1])}`;else{bad.push(i+1);return}
+    const n=s=>+String(s||'0').replace(/[^\d.-]/g,'');out.push({due:d,principal:r2(n(c[1])),profit:r2(n(c[2]))})});
+  return{out,bad};
+}
+function nlSchedule(f,bank){
+  const amt=r2(f.amount*(f.cur===baseCur()?1:f.fx));const sh=s=>f.shift?shiftDate(s,bank):s;
+  if(f.sched==='bank'){const {out,bad}=parsePaste(f.paste);return{lines:out,amt,err:bad.length?'أسطر غير مفهومة في الجدول: '+bad.join('، '):null}}
+  if(!amt||!f.start)return{lines:[],amt};
+  let dues=[];
+  if(f.repay==='bullet'){const d=f.sched==='manual'?f.due:(f.unit==='d'?addDays(f.start,f.period):addMonths(f.start,f.period));if(!d)return{lines:[],amt};dues=[sh(d)]}
+  else{const n=f.unit==='d'?Math.max(1,Math.round(f.period/30)):f.period;for(let i=1;i<=n;i++)dues.push(sh(addMonths(f.start,i)))}
+  const n=dues.length;let lines=[];
+  if(f.pm==='rate'&&f.repay==='installments'&&f.method==='annuity'&&f.rate>0){
+    const i=f.rate/12,pay=amt*i/(1-Math.pow(1+i,-n));let bal=amt;
+    dues.forEach((d,k)=>{const pf=r2(bal*i),pp=k===n-1?r2(bal):r2(pay-pf);lines.push({due:d,principal:pp,profit:pf});bal=r2(bal-pp)});return{lines,amt};
+  }
+  const base=r2(amt/n);let bal=amt,prev=f.start;
+  dues.forEach((d,k)=>{const pp=k===n-1?r2(amt-base*(n-1)):base;lines.push({due:d,principal:pp,profit:0,w:bal*Math.max(0,days(prev,d))});bal-=pp;prev=d});
+  if(f.pm==='rate')lines.forEach(l=>l.profit=r2(l.w*f.rate/f.basis));
+  else if(f.pm==='amount'&&f.profit){const W=lines.reduce((a,l)=>a+l.w,0)||1;let acc=0;lines.forEach((l,k)=>{l.profit=k===n-1?r2(f.profit-acc):r2(f.profit*l.w/W);acc+=l.profit})}
+  lines.forEach(l=>delete l.w);return{lines,amt};
+}
+function nlUpdate(){
+  if(!$('#nlForm'))return;
+  const f=nlRead(),fac=facById(f.facId),bank=bankById(f.bankId),L=limitStats(),beh=fac?.behavior||'short';
+  const show=(id,on)=>{const e=$('#'+id);if(e)e.hidden=!on};
+  show('w-fx',f.cur!==baseCur());show('w-master',beh==='lc');show('w-cm',beh==='lc'||fac?.cashMarginPct!=null);
+  show('w-period',f.sched==='term'||(f.sched==='manual'&&f.repay==='installments'));show('w-due',f.sched==='manual'&&f.repay==='bullet');
+  show('w-shift',f.sched!=='bank');show('w-paste',f.sched==='bank');show('fs-profit',f.sched!=='bank');
+  show('w-profit',f.pm==='amount');show('w-rate',f.pm==='rate');show('w-basis',f.pm==='rate'&&!(f.repay==='installments'&&f.method==='annuity'));show('w-method',f.pm==='rate'&&f.repay==='installments');
+  document.querySelectorAll('#fs-custom [data-cf]').forEach(e=>e.hidden=!(e.dataset.applies==='all'||e.dataset.applies===beh));
+  if(fac){const rt=fac.rateType==='fixed'&&fac.rate!=null?`نسبة ثابتة ${fac.rate}%`:fac.rateType==='benchmark'?(()=>{const b=benchRate(fac.benchmarkId,f.start),bn=S.settings.benchmarks.find(x=>x.id===fac.benchmarkId);return `${esc(bn?.name||'مؤشر')} ${b?b.rate+'%':'(لا يوجد سعر مسجل — أضفه من الإعدادات)'} + هامش ${fac.margin||0}%`})():'الربح يُدخل من كشف البنك';
+    const mx=fac.maxTenor?`أقصى مدة ${fac.maxTenor} ${fac.maxUnit==='d'?'يوم':'شهر'}`:'';
+    $('#nl-terms').innerHTML=`<div class="row muted" style="gap:14px;font-size:12.5px"><span class="pill p-acc">${esc(BEH[beh])}</span><span>${esc(STYLE[fac.style]||'')}</span><span>${rt}</span>${mx?`<span>${mx}</span>`:''}${fac.maxInstallments?`<span>حتى ${fac.maxInstallments} أقساط</span>`:''}${fac.noLimit?'<span>بدون سقف</span>':''}${fac.note?`<span>${esc(fac.note)}</span>`:''}</div>`}
+  const {lines,amt,err}=nlSchedule(f,bank);S.nlLines=lines;
+  const tp=r2(lines.reduce((a,l)=>a+l.principal,0)),tf=r2(lines.reduce((a,l)=>a+l.profit,0)),A=f.sched==='bank'?tp:amt;
+  const fees=facFees(fac,A);if(S.nlFeesAuto)$('#nl-fees').value=fees.length?r2(fees.reduce((a,x)=>a+x.amount,0)):'';
+  $('#nl-feesTxt').innerHTML=fees.length?`<span class="note">من شروط التسهيل: ${fees.map(x=>esc(x.name)+' '+x.desc+' = '+fmt(x.amount)).join('، ')}</span>`:'';
+  const rate=impliedRate(f.start,A,lines),last=lines.length?lines[lines.length-1].due:null;
+  const cmAmt=f.cm!=null&&beh==='lc'?r2(A*f.cm/100):null;
+  $('#nl-calc').innerHTML=`<div><span>المبلغ بـ${esc(curName(baseCur()))}</span><b class="num">${fmt(A)}</b></div><div><span>إجمالي الربح</span><b class="num">${fmt(tf)}</b></div><div><span>إجمالي السداد</span><b class="num">${fmt(tp+tf)}</b></div><div><span>آخر استحقاق</span><b class="num">${fmtD(last)}</b></div><div><span>النسبة السنوية الفعلية</span><b class="num">${rate!=null&&tf>0?fmt(rate*100,3)+'%':'—'}</b></div>${cmAmt!=null?`<div><span>الهامش النقدي</span><b class="num">${fmt(cmAmt)}</b></div>`:''}`;
+  /* warnings from bank terms */
+  const w=[];const lim=L[f.facId];
+  if(lim&&!lim.noLimit){const after=lim.avail-A;w.push([after<0?'bad':'ok',`${esc(limitLabel(lim))}: المتاح الآن <span class="num">${fmt(lim.avail)}</span>، وبعد هذا القرض <span class="num">${fmt(after)}</span>${after<0?' (سيتجاوز الحد)':''}.`])}
+  if(fac&&f.sched!=='bank'){
+    if(fac.repay&&fac.repay.length&&!fac.repay.includes(f.repay))w.push(['warn','طريقة السداد هذه غير مسموحة في شروط التسهيل.']);
+    if(fac.maxTenor&&last&&f.start){const lim2=fac.maxUnit==='d'?addDays(f.start,fac.maxTenor):addMonths(f.start,fac.maxTenor);if(last>shiftDate(lim2,bank))w.push(['warn',`المدة تتجاوز الحد الأقصى في شروط التسهيل (${fac.maxTenor} ${fac.maxUnit==='d'?'يوم':'شهر'}).`])}
+    if(fac.maxInstallments&&lines.length>fac.maxInstallments)w.push(['warn',`عدد الأقساط (${lines.length}) أكبر من المسموح (${fac.maxInstallments}).`]);
+  }
+  if(bank?.renewalDate&&last&&last>bank.renewalDate)w.push(['warn',`الاستحقاق بعد تاريخ تجديد اتفاقية ${esc(bank.name)} (${fmtD(bank.renewalDate)}).`]);
+  if(bank?.renewalDate&&f.start>bank.renewalDate)w.push(['bad',`اتفاقية ${esc(bank.name)} منتهية منذ ${fmtD(bank.renewalDate)}. حدّث تاريخ التجديد من «البنوك والشروط».`]);
+  $('#nl-msgs').innerHTML=w.map(([c,t])=>`<div class="msg ${c}">${t}</div>`).join('');
+  $('#nl-preview').innerHTML=lines.length?`<table><thead><tr><th class="n">#</th><th class="n">تاريخ الاستحقاق</th><th>اليوم</th><th class="n">أصل القسط</th><th class="n">الربح</th><th class="n">الإجمالي</th></tr></thead><tbody>${lines.map((l,i)=>`<tr><td class="n">${i+1}</td><td class="n">${fmtD(l.due)}</td><td>${WD[new Date(P(l.due)).getUTCDay()]}</td><td class="n">${fmt(l.principal)}</td><td class="n">${fmt(l.profit)}</td><td class="n">${fmt(l.principal+l.profit)}</td></tr>`).join('')}<tr class="tot"><td colspan="3">الإجمالي</td><td class="n">${fmt(tp)}</td><td class="n">${fmt(tf)}</td><td class="n">${fmt(tp+tf)}</td></tr></tbody></table>`:'<div class="empty">أدخل المبلغ وتاريخ البداية والمدة لتظهر المعاينة.</div>';
+  $('#nl-err').innerHTML=err?`<div class="msg bad">${esc(err)}</div>`:'';
+}
+document.addEventListener('input',e=>{if(!e.target.closest('#nlForm'))return;if(e.target.id==='nl-fees')S.nlFeesAuto=false;nlUpdate()});
+document.addEventListener('change',e=>{if(!e.target.closest('#nlForm'))return;const id=e.target.id;
+  if(id==='nl-bank'){nlFillFacs();applyFacDefaults()}
+  else if(id==='nl-fac')applyFacDefaults();
+  else if(id==='nl-cur'){$('#nl-fx').value=cur(e.target.value)?.rate||1}
+  else if(id==='nl-start'){const fac=facById($('#nl-fac').value);if(fac?.rateType==='benchmark')applyFacDefaults()}
+  nlUpdate()});
+document.addEventListener('click',e=>{if(e.target.id==='nl-reset'){S.nlConvert=null;vNew()}});
+document.addEventListener('submit',async e=>{
+  if(e.target.id!=='nlForm')return;e.preventDefault();
+  const f=nlRead(),lines=S.nlLines||[],err=$('#nl-err'),fac=facById(f.facId),bank=bankById(f.bankId);
+  const fail=m=>{err.innerHTML=`<div class="msg bad">${esc(m)}</div>`;err.scrollIntoView({block:'center'})};
+  if(!fac)return fail('اختر التسهيل.');
+  if(!f.name)return fail('اكتب البيان (اسم القرض).');
+  if(!lines.length)return fail('لا يوجد جدول سداد. تأكد من المبلغ والتاريخ والمدة.');
+  if(lines.some(l=>!l.due||l.principal<0))return fail('في الجدول تاريخ ناقص أو مبلغ سالب.');
+  if(f.start&&lines.some(l=>l.due<f.start))return fail('يوجد استحقاق قبل تاريخ البداية.');
+  const custom={};for(const c of (S.settings.customFields||[])){const el=$('#nlc-'+c.id);if(!el||el.closest('[data-cf]').hidden)continue;const v=el.value.trim();if(c.required&&!v)return fail(`الحقل «${c.name}» مطلوب.`);if(v)custom[c.id]=c.type==='number'?+v:v}
+  const bn=fac.rateType==='benchmark'?S.settings.benchmarks.find(x=>x.id===fac.benchmarkId):null,bv=bn?benchRate(bn.id,f.start):null;
+  const A=r2(lines.reduce((a,l)=>a+l.principal,0));
+  const loan={term:fac.behavior==='long'?'long':'short',behavior:fac.behavior,bankId:bank.id,bank:bank.name,facilityId:fac.id,limitId:fac.id,facility:fac.label,
+    name:f.name,ref:f.ref||null,master:fac.behavior==='lc'?(f.master||null):null,start:f.start||null,currency:f.cur,fxRate:f.cur===baseCur()?1:f.fx,amountFC:f.cur===baseCur()?null:f.amount,
+    repay:lines.length>1?'installments':'bullet',
+    terms:{style:fac.style,rateType:f.sched==='bank'?'bank':f.pm==='rate'?(fac.rateType==='benchmark'?'benchmark':'fixed'):f.pm,ratePct:f.pm==='rate'?r2(f.rate*100*1000)/1000:null,
+      benchmark:bn?.name||null,benchmarkRate:bv?+bv.rate:null,margin:fac.rateType==='benchmark'?(+fac.margin||0):null,basis:f.basis,method:f.repay==='installments'?f.method:null},
+    fees:f.fees?{total:r2(f.fees),items:facFees(fac,A)}:null,cashMarginPct:fac.behavior==='lc'?f.cm:null,cashMarginAmount:fac.behavior==='lc'&&f.cm!=null?r2(A*f.cm/100):null,
+    custom,notes:f.notes||null,
+    lines:lines.map(l=>({due:l.due,principal:l.principal,profit:l.profit,paidPrincipal:0,paidProfit:0,paidDate:null})),payments:[],
+    convertedFrom:S.nlConvert||null,source:'app',createdAt:new Date().toISOString(),createdBy:S.user};
+  $('#nl-save').disabled=true;
+  const id=rid('L');const ops=[putLoan(id,loan)];
+  if(S.nlConvert){const src=S.loans.find(l=>l.id===S.nlConvert);if(src){const c=clone(src);c.convertedTo=id;ops.push(putLoan(src.id,c))}}
+  if(await save(ops,'تم حفظ القرض')){S.nlConvert=null;S.openLoan=id;S.lf={bank:'',status:'all',term:'',q:''};setView('loans')}else $('#nl-save').disabled=false;
+});
+
+/* ======================= payment ======================= */
+function vPay(){
+  const pre=S.pm||{};S.pm=null;
+  $('#view').innerHTML=`<section class="panel"><div class="ph"><h2>تسجيل سداد</h2><p>اختر القرض والقسط، المبالغ تُعبأ تلقائياً بالمتبقي ويمكنك تعديلها.</p></div>
+  <form id="pmForm" autocomplete="off">
+   <fieldset><legend>القرض</legend>
+    <label class="f">البنك<select id="pm-bank"><option value="">كل البنوك</option>${[...new Set(S.loans.filter(isActive).map(l=>l.bank))].map(b=>`<option>${esc(b)}</option>`).join('')}</select></label>
+    <label class="f" style="grid-column:span 3">القرض<select id="pm-loan"></select></label>
+    <div class="f wide"><span>نطاق السداد</span><div class="seg"><label><input type="radio" name="pm-scope" value="line" checked>قسط / استحقاق واحد</label><label><input type="radio" name="pm-scope" value="all">سداد مبكر لكامل الرصيد</label></div></div>
+    <label class="f wide" id="w-line">القسط<select id="pm-line"></select></label>
+    <div class="f wide" id="w-conv"><span>طريقة التسوية</span><div class="seg"><label><input type="radio" name="pm-method" value="cash" checked>سداد</label><label><input type="radio" name="pm-method" value="convert">تحويل إلى تمويل اعتماد</label></div></div>
+   </fieldset>
+   <fieldset><legend>المبالغ</legend>
+    <label class="f">تاريخ السداد<input id="pm-date" type="date" value="${todayStr()}"></label>
+    <label class="f">المسدد من الأصل<input id="pm-principal" type="number" step="0.01" min="0"></label>
+    <label class="f">المسدد من الربح<input id="pm-profit" type="number" step="0.01" min="0"></label>
+    <label class="f">طريقة الدفع<select id="pm-pay">${(S.settings.paymentMethods||[]).map(m=>`<option>${esc(m)}</option>`).join('')}</select></label>
+    <label class="f wide">ملاحظة / رقم الإشعار<input id="pm-note"></label>
+   </fieldset>
+   <div class="calc" id="pm-calc"></div>
+   <div id="pm-msg"></div>
+   <div class="row"><button class="btn pri" type="submit" id="pm-save">تسجيل السداد</button></div>
+  </form></section>`;
+  pmFillLoans(pre.loan);if(pre.line!=null)pmFillLines(pre.line);pmUpdate(true);
+}
+function pmFillLoans(pick){
+  const sel=$('#pm-loan');if(!sel)return;const cv=pick||sel.value,b=$('#pm-bank').value;
+  const ls=S.loans.filter(l=>isActive(l)&&(!b||l.bank===b)).sort((a,c)=>(nextLine(a)?.due||'')<(nextLine(c)?.due||'')?-1:1);
+  sel.innerHTML=ls.length?ls.map(l=>`<option value="${l.id}">${esc(l.bank)} — ${esc(l.name)} — قائم ${fmt(outstanding(l))} — أقرب استحقاق ${fmtD(nextLine(l)?.due)}</option>`).join(''):'<option value="">لا توجد قروض قائمة</option>';
+  if(ls.some(l=>l.id===cv))sel.value=cv;
+  if(sel.dataset.last!==sel.value){sel.dataset.last=sel.value;pmFillLines()}
+}
+function pmFillLines(pick){
+  const loan=S.loans.find(l=>l.id===$('#pm-loan').value),sel=$('#pm-line');if(!loan){sel.innerHTML='';return}
+  const cv=pick!=null?String(pick):sel.value;
+  const open=loan.lines.map((l,i)=>({l,i})).filter(x=>lineState(x.l)!=='paid');
+  sel.innerHTML=open.map(x=>`<option value="${x.i}">${fmtD(x.l.due)} — أصل ${fmt(remP(x.l))} + ربح ${fmt(remF(x.l))} = ${fmt(remP(x.l)+remF(x.l))}${x.l.due<todayStr()?' (متأخر)':''}</option>`).join('');
+  if(open.some(x=>String(x.i)===cv))sel.value=cv;S.pmKey='';
+}
+function pmUpdate(force){
+  if(!$('#pmForm'))return;const loan=S.loans.find(l=>l.id===$('#pm-loan').value);
+  const scope=document.querySelector('input[name="pm-scope"]:checked').value;
+  const fac=loan&&facById(loan.facilityId),canConv=!!(loan&&loan.behavior==='lc'&&fac?.convertible&&scope==='line');
+  $('#w-line').hidden=scope==='all';$('#w-conv').hidden=!canConv;
+  if(!canConv)document.querySelector('input[name="pm-method"][value="cash"]').checked=true;
+  const method=document.querySelector('input[name="pm-method"]:checked').value;
+  if(!loan){$('#pm-calc').innerHTML='';return}
+  const key=loan.id+'|'+scope+'|'+$('#pm-line').value+'|'+method;
+  if(force||S.pmKey!==key){S.pmKey=key;
+    if(scope==='all'){$('#pm-principal').value=outstanding(loan).toFixed(2);const due=loan.lines.filter(l=>lineState(l)!=='paid'&&l.due<=$('#pm-date').value);$('#pm-profit').value=r2(due.reduce((a,l)=>a+remF(l),0)).toFixed(2)}
+    else{const l=loan.lines[+$('#pm-line').value];if(l){$('#pm-principal').value=remP(l).toFixed(2);$('#pm-profit').value=(method==='convert'?0:remF(l)).toFixed(2)}}
+  }
+  $('#pm-principal').readOnly=scope==='all';
+  const L=limitStats(),lim=L[loan.limitId],pp=+$('#pm-principal').value||0,pf=+$('#pm-profit').value||0;
+  $('#pm-calc').innerHTML=`<div><span>رصيد القرض القائم</span><b class="num">${fmt(outstanding(loan))}</b></div><div><span>الربح المتبقي</span><b class="num">${fmt(remProfit(loan))}</b></div><div><span>إجمالي هذا السداد</span><b class="num">${fmt(pp+pf)}</b></div>${lim&&!lim.noLimit?`<div><span>المتاح في ${esc(lim.label)} بعد السداد</span><b class="num">${fmt(lim.avail+pp)}</b></div>`:''}`;
+  const tgt=fac?.lcfTargetId&&facById(fac.lcfTargetId);
+  $('#pm-msg').innerHTML=scope==='all'?`<div class="msg warn">سيُسدد كامل الأصل القائم. الربح المدخل يُوزع على الأقساط بالترتيب، وأي ربح مستقبلي متبقٍ يُسجل كخصم سداد مبكر.</div>`:method==='convert'?`<div class="msg warn">سيُقفل الاعتماد ويتحرر حده، ثم تنتقل لشاشة قرض جديد لتسجيل تمويل الاعتماد على «${esc(tgt?tgt.label:'نفس الحد')}».</div>`:'';
+}
+document.addEventListener('input',e=>{if(e.target.closest('#pmForm')&&['pm-principal','pm-profit','pm-note'].includes(e.target.id))pmUpdate()});
+document.addEventListener('change',e=>{if(!e.target.closest('#pmForm'))return;
+  if(e.target.id==='pm-bank')pmFillLoans();else if(e.target.id==='pm-loan'){e.target.dataset.last=e.target.value;pmFillLines()}
+  if(e.target.id==='pm-date')S.pmKey='';pmUpdate()});
+document.addEventListener('submit',async e=>{
+  if(e.target.id!=='pmForm')return;e.preventDefault();
+  const loan=S.loans.find(l=>l.id===$('#pm-loan').value),msg=$('#pm-msg');const fail=m=>msg.innerHTML=`<div class="msg bad">${esc(m)}</div>`;
+  if(!loan)return fail('اختر قرضاً.');
+  const scope=document.querySelector('input[name="pm-scope"]:checked').value,method=$('#w-conv').hidden?'cash':document.querySelector('input[name="pm-method"]:checked').value;
+  const date=$('#pm-date').value,pp=r2(+$('#pm-principal').value||0),pf=r2(+$('#pm-profit').value||0);
+  if(!date)return fail('حدد تاريخ السداد.');if(pp<0||pf<0||pp+pf<=0)return fail('أدخل مبلغ السداد.');
+  const c=clone(loan);const alloc=[];
+  if(scope==='line'){const i=+$('#pm-line').value,l=c.lines[i];if(!l)return fail('اختر القسط.');
+    if(pp>remP(l)+0.005)return fail(`المسدد من الأصل أكبر من المتبقي (${fmt(remP(l))}).`);
+    l.paidPrincipal=r2((l.paidPrincipal||0)+pp);l.paidProfit=r2((l.paidProfit||0)+pf);l.paidDate=date;let w=0;
+    if(method==='convert'&&remF(l)>0){w=remF(l);l.waived=r2((l.waived||0)+w);l.profit=r2(l.profit-w)}
+    alloc.push({i,p:pp,f:pf,w});
+  }else{let leftF=pf;c.lines.forEach((l,i)=>{if(lineState(l)==='paid')return;const p=remP(l),f=Math.min(remF(l),leftF);leftF=r2(leftF-f);
+      l.paidPrincipal=r2((l.paidPrincipal||0)+p);l.paidProfit=r2((l.paidProfit||0)+f);l.paidDate=date;const w=remF(l);if(w>0){l.waived=r2((l.waived||0)+w);l.profit=r2(l.profit-w)}alloc.push({i,p,f,w})});
+    if(leftF>0.005&&alloc.length){const a=alloc[alloc.length-1];a.f=r2(a.f+leftF);const l=c.lines[a.i];l.paidProfit=r2(l.paidProfit+leftF);l.profit=r2(l.profit+leftF)}}
+  c.payments=[...(c.payments||[]),{id:rid('p'),date,principal:pp,profit:pf,scope,method,payMethod:$('#pm-pay').value||null,note:$('#pm-note').value.trim()||null,alloc,by:S.user,at:new Date().toISOString()}];
+  $('#pm-save').disabled=true;
+  if(await save([putLoan(loan.id,c)],'تم تسجيل السداد')){
+    if(method==='convert'){const fac=facById(loan.facilityId);const tgt=facById(fac?.lcfTargetId)||fac;
+      S.nlPrefill={bankId:loan.bankId,facilityId:tgt?.id,amount:pp,start:date,name:'تمويل اعتماد '+loan.name,convertedFrom:loan.id,fromName:loan.name};setView('new')}
+    else{S.pm={loan:loan.id};vPay()}
+  }else $('#pm-save').disabled=false;
+});
+
+/* ======================= loans register ======================= */
+function vLoans(){
+  const f=S.lf,q=f.q.trim(),cfl=(S.settings.customFields||[]).filter(c=>c.showInList);
+  const list=S.loans.filter(l=>(!f.bank||l.bank===f.bank)&&(!f.term||(f.term==='long')===(l.behavior==='long'))&&(f.status==='all'||(f.status==='active')===isActive(l))&&(!q||(l.name+' '+(l.ref||'')+' '+(l.master||'')+' '+Object.values(l.custom||{}).join(' ')).includes(q)))
+    .sort((a,b)=>(isActive(b)-isActive(a))||((nextLine(a)?.due||a.lines.at(-1)?.due||'')<(nextLine(b)?.due||b.lines.at(-1)?.due||'')?-1:1));
+  const banks=[...new Set(S.loans.map(l=>l.bank))],cols=9+cfl.length;
+  const rows=list.map(l=>{const nx=nextLine(l),act=isActive(l),open=S.openLoan===l.id,r=loanRate(l);
+    return `<tr class="click ${open?'open-row':''}" data-lid="${l.id}"><td>${esc(l.bank)}</td><td>${esc(l.name)}${l.convertedTo?' <span class="pill p-acc">حُوّل لتمويل</span>':''}${l.convertedFrom?' <span class="pill p-acc">من اعتماد</span>':''}</td><td>${esc(l.facility)}</td>
+      <td class="n">${fmtD(l.start)}</td><td class="n">${nx?fmtD(nx.due):'—'}</td><td class="n">${fmt(totalPrincipal(l))}</td><td class="n">${fmt(outstanding(l))}</td><td class="n">${r!=null&&totalProfit(l)>0?fmt(r*100,2)+'%':'—'}</td>
+      ${cfl.map(c=>`<td>${esc(l.custom?.[c.id]??'')}</td>`).join('')}
+      <td>${act?(nx&&nx.due<todayStr()?'<span class="pill p-bad">متأخر</span>':'<span class="pill p-warn">قائم</span>'):'<span class="pill p-ok">مسدد</span>'}</td></tr>
+      ${open?`<tr><td colspan="${cols}">${loanDetail(l)}</td></tr>`:''}`}).join('');
+  $('#view').innerHTML=`<section class="panel"><div class="ph"><h2>سجل القروض</h2><button class="btn sm" id="lnExport">تصدير كل الأقساط Excel (CSV)</button></div>
+   <div class="row">
+    <input id="lf-q" placeholder="بحث بالبيان أو المرجع" value="${esc(f.q)}" style="width:220px">
+    <select id="lf-bank" style="width:140px"><option value="">كل البنوك</option>${banks.map(b=>`<option ${b===f.bank?'selected':''}>${esc(b)}</option>`).join('')}</select>
+    <select id="lf-term" style="width:130px"><option value="">كل الآجال</option><option value="short" ${f.term==='short'?'selected':''}>قصير</option><option value="long" ${f.term==='long'?'selected':''}>طويل</option></select>
+    <select id="lf-status" style="width:130px"><option value="active" ${f.status==='active'?'selected':''}>القائمة</option><option value="paid" ${f.status==='paid'?'selected':''}>المسددة</option><option value="all" ${f.status==='all'?'selected':''}>الكل</option></select>
+    <span class="muted">${list.length} قرض</span>
+   </div>
+   <div class="tw"><table><thead><tr><th>البنك</th><th>البيان</th><th>التسهيل</th><th class="n">البداية</th><th class="n">الاستحقاق القادم</th><th class="n">أصل القرض</th><th class="n">القائم</th><th class="n">النسبة الفعلية</th>${cfl.map(c=>`<th>${esc(c.name)}</th>`).join('')}<th>الحالة</th></tr></thead>
+   <tbody>${rows||`<tr><td colspan="${cols}" class="empty">لا توجد قروض مطابقة.</td></tr>`}</tbody></table></div></section>`;
+}
+function loanDetail(l){
+  const src=l.convertedFrom&&S.loans.find(x=>x.id===l.convertedFrom),dst=l.convertedTo&&S.loans.find(x=>x.id===l.convertedTo),t=l.terms;
+  const cfs=(S.settings.customFields||[]).filter(c=>l.custom&&l.custom[c.id]!=null);
+  const sched=l.lines.map((x,i)=>{const s=lineState(x),[c,tx]=s==='paid'?['p-ok','مسدد']:s==='partial'?['p-acc','جزئي']:urgency(x.due);
+    return `<tr><td class="n">${i+1}</td><td class="n">${fmtD(x.due)}</td><td class="n">${fmt(x.principal)}</td><td class="n">${fmt(x.profit)}${x.waived?` <span class="muted">(خصم ${fmt(x.waived)})</span>`:''}</td><td class="n">${fmt(x.principal+x.profit)}</td><td class="n">${fmt((x.paidPrincipal||0)+(x.paidProfit||0))}</td><td><span class="pill ${c}">${tx}</span></td><td>${s!=='paid'?`<button class="btn sm" data-pay="${l.id}" data-line="${i}">سداد</button>`:''}</td></tr>`}).join('');
+  const pays=(l.payments||[]).slice().reverse().map(p=>`<tr><td class="n">${fmtD(p.date)}</td><td>${p.scope==='all'?'سداد مبكر كامل':p.method==='convert'?'تحويل لتمويل اعتماد':'سداد قسط'}</td><td>${esc(p.payMethod||'')}</td><td class="n">${fmt(p.principal)}</td><td class="n">${fmt(p.profit)}</td><td>${esc(p.note||'')}</td><td class="muted">${esc(p.by||'')}</td><td><button class="btn sm dng" data-undo="${l.id}" data-pid="${p.id}">إلغاء</button></td></tr>`).join('');
+  const tt=t?[STYLE[t.style],t.rateType==='benchmark'?`${t.benchmark||'مؤشر'} ${t.benchmarkRate??''}% + هامش ${t.margin}% = ${t.ratePct}%`:t.ratePct!=null?`نسبة ${t.ratePct}%`:t.rateType==='bank'?'جدول البنك':'ربح من كشف البنك',t.basis?'أساس '+t.basis:''].filter(Boolean).join(' · '):'';
+  return `<div class="detail">
+    <div class="row muted" style="gap:18px;font-size:12.5px"><span>التسهيل: <b>${esc(l.bank)} — ${esc(l.facility)}</b></span>${l.ref?`<span>المرجع: <b class="num">${esc(l.ref)}</b></span>`:''}${l.master?`<span>الاعتماد الرئيسي: <b>${esc(l.master)}</b></span>`:''}${l.amountFC?`<span>المبلغ: <b class="num">${fmt(l.amountFC)} ${esc(l.currency)} × ${l.fxRate}</b></span>`:''}<span>السداد: <b>${l.repay==='installments'?'أقساط ('+l.lines.length+')':'دفعة واحدة'}</b></span>${tt?`<span>الشروط عند الفتح: <b>${esc(tt)}</b></span>`:''}${l.fees?`<span>الرسوم: <b class="num">${fmt(l.fees.total)}</b></span>`:''}${l.cashMarginAmount!=null?`<span>الهامش النقدي: <b class="num">${fmt(l.cashMarginAmount)}</b> (${l.cashMarginPct}%)</span>`:''}${src?`<span>محوّل من: <b>${esc(src.name)}</b></span>`:''}${dst?`<span>حُوّل إلى: <b>${esc(dst.name)}</b></span>`:''}${cfs.map(c=>`<span>${esc(c.name)}: <b>${esc(l.custom[c.id])}</b></span>`).join('')}${l.notes?`<span>ملاحظات: ${esc(l.notes)}</span>`:''}${l.createdBy?`<span>سجّله: ${esc(l.createdBy)}</span>`:''}</div>
+    <div class="tw"><table><thead><tr><th class="n">#</th><th class="n">الاستحقاق</th><th class="n">الأصل</th><th class="n">الربح</th><th class="n">الإجمالي</th><th class="n">المسدد</th><th>الحالة</th><th></th></tr></thead><tbody>${sched}
+      <tr class="tot"><td colspan="2">الإجمالي</td><td class="n">${fmt(totalPrincipal(l))}</td><td class="n">${fmt(l.lines.reduce((a,x)=>a+x.profit,0))}</td><td class="n">${fmt(l.lines.reduce((a,x)=>a+x.principal+x.profit,0))}</td><td class="n">${fmt(l.lines.reduce((a,x)=>a+(x.paidPrincipal||0)+(x.paidProfit||0),0))}</td><td colspan="2"></td></tr></tbody></table></div>
+    ${pays?`<h3>حركات السداد المسجلة</h3><div class="tw"><table><thead><tr><th class="n">التاريخ</th><th>النوع</th><th>طريقة الدفع</th><th class="n">أصل</th><th class="n">ربح</th><th>ملاحظة</th><th>سجّلها</th><th></th></tr></thead><tbody>${pays}</tbody></table></div>`:'<p class="note">لا توجد حركات سداد مسجلة من البرنامج (المسدد من الإكسيل مُرحّل كما هو).</p>'}
+    <div class="row" id="del-${l.id}"><button class="btn sm dng" data-del="${l.id}">حذف القرض</button></div>
+  </div>`;
+}
+document.addEventListener('input',e=>{if(e.target.id==='lf-q'){S.lf.q=e.target.value;clearTimeout(S.qt);S.qt=setTimeout(()=>{vLoans();const i=$('#lf-q');i.focus();i.setSelectionRange(i.value.length,i.value.length)},250)}});
+document.addEventListener('change',e=>{const m={'lf-bank':'bank','lf-term':'term','lf-status':'status'}[e.target.id];if(m){S.lf[m]=e.target.value;vLoans()}});
+document.addEventListener('click',async e=>{
+  if(S.view!=='loans')return;
+  if(e.target.id==='lnExport'){const cfs=S.settings.customFields||[];const rows=[['البنك','البيان','الأجل','التسهيل','المرجع','تاريخ البداية','تاريخ الاستحقاق','الأصل','الربح','الإجمالي','المسدد','الحالة','المستخدم حتى تاريخه',...cfs.map(c=>c.name)]];
+    S.loans.forEach(l=>l.lines.forEach(x=>rows.push([l.bank,l.name,l.behavior==='long'?'قروض طويلة':'قروض قصيرة',l.facility,l.ref||'',l.start||'',x.due,x.principal,x.profit,r2(x.principal+x.profit),r2((x.paidPrincipal||0)+(x.paidProfit||0)),{paid:'مسدد',partial:'مسدد جزئي',open:'غير مسدد'}[lineState(x)],remP(x),...cfs.map(c=>l.custom?.[c.id]??'')])));
+    exportCSV('جدول-استحقاق-القروض-'+todayStr()+'.csv',rows);return}
+  const del=e.target.closest('[data-del]');
+  if(del){const id=del.dataset.del;$('#del-'+id).innerHTML=`<span class="msg bad" style="padding:5px 10px">حذف القرض وكل أقساطه وحركاته نهائياً؟</span><button class="btn sm dng" data-delok="${id}">نعم، احذف</button><button class="btn sm" data-delno>إلغاء</button>`;return}
+  if(e.target.closest('[data-delno]')){vLoans();return}
+  const ok=e.target.closest('[data-delok]');
+  if(ok){if(await save([{col:'loans',id:ok.dataset.delok,del:true}],'تم حذف القرض')){S.openLoan=null;vLoans()}return}
+  const un=e.target.closest('[data-undo]');
+  if(un){const loan=S.loans.find(l=>l.id===un.dataset.undo);if(!loan)return;const c=clone(loan);const p=c.payments.find(x=>x.id===un.dataset.pid);if(!p)return;
+    p.alloc.forEach(a=>{const l=c.lines[a.i];l.paidPrincipal=r2(l.paidPrincipal-a.p);l.paidProfit=r2(l.paidProfit-a.f);if(a.w){l.profit=r2(l.profit+a.w);l.waived=r2((l.waived||0)-a.w);if(l.waived<=0)delete l.waived}if(!l.paidPrincipal&&!l.paidProfit)l.paidDate=null});
+    c.payments=c.payments.filter(x=>x.id!==p.id);if(await save([putLoan(loan.id,c)],'تم إلغاء حركة السداد'))vLoans();return}
+  const tr=e.target.closest('tr[data-lid]');if(tr&&!e.target.closest('button')){S.openLoan=S.openLoan===tr.dataset.lid?null:tr.dataset.lid;vLoans()}
+});
+
+/* ======================= generic editor binding ======================= */
+// inputs carry data-p="path.to.field" inside a container with data-scope="bank"|"set"
+function getRoot(scope){return scope==='bank'?S.bankEdit:S.setEdit}
+function setPath(obj,path,val){const ks=path.split('.');let o=obj;for(let i=0;i<ks.length-1;i++)o=o[ks[i]];o[ks[ks.length-1]]=val}
+function getPath(obj,path){return path.split('.').reduce((o,k)=>o==null?o:o[k],obj)}
+function readInput(el){
+  const t=el.dataset.t||'text';
+  if(el.type==='checkbox'&&el.dataset.arr==null)return el.checked;
+  const v=el.value;if(t==='num')return v===''?null:+v;if(t==='int')return v===''?null:parseInt(v,10);return v===''?null:v;
+}
+function onEdit(e){
+  const box=e.target.closest('[data-scope]');if(!box)return;const scope=box.dataset.scope,root=getRoot(scope);if(!root)return;const el=e.target;
+  if(el.dataset.arr!=null){const arr=getPath(root,el.dataset.arr)||[];const v=el.dataset.v;const has=arr.includes(v);if(el.checked&&!has)arr.push(v);if(!el.checked&&has)arr.splice(arr.indexOf(v),1);setPath(root,el.dataset.arr,arr)}
+  else if(el.dataset.p)setPath(root,el.dataset.p,readInput(el));else return;
+  if(scope==='bank')S.bankDirty=true;else S.setDirty=true;
+  if(el.dataset.rr!=null&&e.type==='change'){const y=window.scrollY;scope==='bank'?vBanks():vSettings();window.scrollTo(0,y)}
+  else markDirty(scope);
+}
+function markDirty(scope){const b=$(scope==='bank'?'#bk-state':'#st-state');if(b)b.textContent='تعديلات غير محفوظة'}
+document.addEventListener('input',onEdit);document.addEventListener('change',e=>{if(e.target.dataset.rr!=null)onEdit(e)});
+const I=(p,v,t='text',extra='')=>`<input data-p="${p}" ${t==='num'||t==='int'?`type="number" step="${t==='int'?1:'any'}" data-t="${t}"`:t==='date'?'type="date"':''} value="${esc(v??'')}" ${extra}>`;
+const SEL=(p,v,opts,rr=false,t='')=>`<select data-p="${p}" ${rr?'data-rr':''} ${t?`data-t="${t}"`:''}>${opts.map(([k,l])=>`<option value="${esc(k)}" ${String(v??'')===String(k)?'selected':''}>${esc(l)}</option>`).join('')}</select>`;
+const CHK=(p,v,label,rr=false)=>`<label class="chk"><input type="checkbox" data-p="${p}" ${v?'checked':''} ${rr?'data-rr':''}>${label}</label>`;
+
+/* ======================= banks & terms ======================= */
+const BANK_FIELDS={name:'اسم البنك',active:'مفعّل',agreementNo:'رقم الاتفاقية',startDate:'تاريخ الاتفاقية',renewalDate:'تاريخ التجديد',contact:'مسؤول العلاقة',basis:'أساس الأيام',shiftRule:'ترحيل العطل',notes:'ملاحظات'};
+const FAC_FIELDS={label:'الاسم',typeId:'النوع',active:'مفعّل',limit:'الحد',noLimit:'بدون سقف',currency:'العملة',parentId:'حد فرعي من',style:'نمط التمويل',repay:'طرق السداد',maxTenor:'أقصى مدة',maxUnit:'وحدة أقصى مدة',defaultTenor:'المدة الافتراضية',defaultUnit:'وحدة المدة الافتراضية',maxInstallments:'أقصى عدد أقساط',rateType:'نوع الفائدة',rate:'النسبة الثابتة',benchmarkId:'المؤشر',margin:'الهامش',basis:'أساس الأيام',method:'نوع القسط',fees:'الرسوم',lcDays:'مدة الاعتماد',cashMarginPct:'الهامش النقدي',convertible:'يتحول لتمويل',lcfTargetId:'يتحول إلى',note:'ملاحظة'};
+function newFacility(){return{id:rid('f'),label:'تسهيل جديد',typeId:S.settings.facilityTypes[0]?.id||'short',active:true,limit:0,noLimit:false,currency:baseCur(),parentId:null,style:'conventional',repay:['bullet','installments'],maxTenor:6,maxUnit:'m',defaultTenor:6,defaultUnit:'m',maxInstallments:6,rateType:'manual',rate:null,benchmarkId:null,margin:null,basis:null,method:'equal',fees:[],lcDays:null,cashMarginPct:null,convertible:false,lcfTargetId:null,note:null}}
+function bankStats(b){const L=limitStats();const fs=(b.facilities||[]).filter(f=>!f.noLimit&&f.active!==false&&!f.parentId);
+  const lim=fs.reduce((a,f)=>a+(L[f.id]?.limit||0),0),used=fs.reduce((a,f)=>a+(L[f.id]?.used||0),0);
+  const ls=S.loans.filter(l=>l.bankId===b.id);let w=0,wr=0;ls.forEach(l=>{const r=loanRate(l);if(r!=null&&l.behavior!=='long'){w+=totalPrincipal(l);wr+=r*totalPrincipal(l)}});
+  return{lim,used,n:ls.filter(isActive).length,rate:w?wr/w:null}}
+function vBanks(){
+  if(!S.selBank||!bankById(S.selBank)&&!(S.bankEdit&&S.bankEdit.id===S.selBank))S.selBank=S.banks[0]?.id||null;
+  if(S.selBank&&(!S.bankEdit||S.bankEdit.id!==S.selBank)){const b=bankById(S.selBank);if(b){S.bankEdit=clone(b);S.bankDirty=false}}
+  const E=S.bankEdit;
+  const cards=S.banks.map(b=>{const st=bankStats(b),rn=b.renewalDate?days(todayStr(),b.renewalDate):null;
+    return `<button class="bankcard ${b.active===false?'off':''}" data-selbank="${b.id}" aria-current="${b.id===S.selBank}"><b>${esc(b.name)}</b><span>${(b.facilities||[]).length} تسهيل · حدود ${fmt0(st.lim)}</span><span>${st.n} قرض قائم${st.rate!=null?' · متوسط '+fmt(st.rate*100,2)+'%':''}</span>${rn!=null?`<span><span class="pill ${rn<0?'p-bad':rn<=S.settings.renewalAlertDays?'p-warn':'p-mut'}">تجديد ${fmtD(b.renewalDate)}</span></span>`:''}</button>`}).join('');
+  const newCard=S.bankEdit&&!bankById(S.bankEdit.id)?`<button class="bankcard" aria-current="true"><b>${esc(S.bankEdit.name||'بنك جديد')}</b><span>غير محفوظ</span></button>`:'';
+  $('#view').innerHTML=`<section class="panel"><div class="ph"><h2>البنوك والشروط</h2><div class="row"><button class="btn sm" id="bkAdd">إضافة بنك</button>${E?'<button class="btn sm" id="bkCopy">نسخ هذا البنك كبنك جديد</button>':''}</div></div>
+    <p class="note">كل ما يخص البنك يُضبط من هنا: الحدود، طرق السداد المسموحة، المدد، الفائدة، الرسوم، الاعتمادات. القروض المسجلة تحتفظ بالشروط التي فُتحت عليها؛ التعديل يؤثر على القروض الجديدة فقط.</p>
+    <div class="bankbar">${cards}${newCard}</div></section>
+  ${E?bankEditor(E):'<section class="panel"><div class="empty">لا توجد بنوك. اضغط «إضافة بنك».</div></section>'}`;
+}
+function bankEditor(E){
+  const used=new Set(S.loans.filter(l=>l.bankId===E.id).map(l=>l.facilityId));
+  const types=S.settings.facilityTypes.map(t=>[t.id,t.name+' ('+BEH[t.behavior]+')']);
+  const curs=S.settings.currencies.map(c=>[c.code,c.name]);
+  const benches=[['','—'],...S.settings.benchmarks.map(b=>[b.id,b.name+(benchRate(b.id)?' ('+benchRate(b.id).rate+'%)':' (بدون سعر)')])];
+  const facs=(E.facilities||[]).map((f,i)=>{const p='facilities.'+i,beh=behaviorOf(f.typeId),others=[['','—'],...E.facilities.filter(x=>x.id!==f.id).map(x=>[x.id,x.label])];
+    return `<div class="fac ${f.active===false?'off':''}">
+      <div class="row" style="justify-content:space-between"><b>${esc(f.label||'')}</b><span class="row">${CHK(p+'.active',f.active!==false,'مفعّل',true)}<button type="button" class="btn sm dng" data-facdel="${i}" ${used.has(f.id)?'disabled title="مرتبط بقروض — عطّله بدلاً من حذفه"':''}>حذف</button></span></div>
+      <div class="grid">
+        <label class="f">اسم التسهيل${I(p+'.label',f.label)}</label>
+        <label class="f">النوع${SEL(p+'.typeId',f.typeId,types,true)}</label>
+        <label class="f">نمط التمويل${SEL(p+'.style',f.style,Object.entries(STYLE))}</label>
+        <label class="f">عملة الحد${SEL(p+'.currency',f.currency,curs)}</label>
+        <label class="f">مبلغ الحد${f.noLimit?'<input disabled value="بدون سقف">':I(p+'.limit',f.limit,'num')}</label>
+        <div class="f"><span>&nbsp;</span>${CHK(p+'.noLimit',f.noLimit,'بدون سقف (متابعة فقط)',true)}</div>
+        <label class="f">حد فرعي من (يخصم من الاثنين)${SEL(p+'.parentId',f.parentId,others)}</label>
+        <h4>السداد والمدة</h4>
+        <div class="f"><span>طرق السداد المسموحة</span><label class="chk"><input type="checkbox" data-arr="${p}.repay" data-v="bullet" ${(f.repay||[]).includes('bullet')?'checked':''}>دفعة واحدة</label><label class="chk"><input type="checkbox" data-arr="${p}.repay" data-v="installments" ${(f.repay||[]).includes('installments')?'checked':''}>أقساط شهرية</label></div>
+        <label class="f">أقصى مدة<span class="row" style="flex-wrap:nowrap">${I(p+'.maxTenor',f.maxTenor,'int')}${SEL(p+'.maxUnit',f.maxUnit||'m',[['m','شهر'],['d','يوم']])}</span></label>
+        <label class="f">المدة الافتراضية<span class="row" style="flex-wrap:nowrap">${I(p+'.defaultTenor',f.defaultTenor,'int')}${SEL(p+'.defaultUnit',f.defaultUnit||'m',[['m','شهر'],['d','يوم']])}</span></label>
+        <label class="f">أقصى عدد أقساط${I(p+'.maxInstallments',f.maxInstallments,'int')}</label>
+        <h4>الربح / الفائدة</h4>
+        <label class="f">طريقة تحديد النسبة${SEL(p+'.rateType',f.rateType||'manual',Object.entries(RATE),true)}</label>
+        ${f.rateType==='fixed'?`<label class="f">النسبة السنوية %${I(p+'.rate',f.rate,'num')}</label>`:''}
+        ${f.rateType==='benchmark'?`<label class="f">المؤشر${SEL(p+'.benchmarkId',f.benchmarkId,benches)}</label><label class="f">هامش البنك %${I(p+'.margin',f.margin,'num')}</label>`:''}
+        <label class="f">أساس الأيام${SEL(p+'.basis',f.basis??'',[['','حسب البنك'],['360','فعلي/360'],['365','فعلي/365']],false,'num')}</label>
+        <label class="f">نوع القسط الافتراضي${SEL(p+'.method',f.method||'equal',[['equal','أصل متساوٍ + ربح متناقص'],['annuity','قسط ثابت']])}</label>
+        <h4>الرسوم والعمولات (تُحسب تلقائياً عند فتح القرض، ولا تؤثر على الحد)</h4>
+        <div class="f wide"><div class="tw"><table class="listedit"><thead><tr><th>اسم الرسوم</th><th>النوع</th><th>القيمة</th><th></th></tr></thead><tbody>
+          ${(f.fees||[]).map((x,j)=>`<tr><td>${I(p+'.fees.'+j+'.name',x.name)}</td><td>${SEL(p+'.fees.'+j+'.kind',x.kind,[['pct','نسبة % من المبلغ'],['fixed','مبلغ ثابت']])}</td><td>${I(p+'.fees.'+j+'.value',x.value,'num')}</td><td><button type="button" class="btn sm dng" data-feedel="${i}.${j}">حذف</button></td></tr>`).join('')||'<tr><td colspan="4" class="muted">لا توجد رسوم</td></tr>'}
+        </tbody></table></div><div><button type="button" class="btn sm" data-feeadd="${i}">إضافة رسوم</button></div></div>
+        ${beh==='lc'?`<h4>الاعتمادات المستندية</h4>
+          <label class="f">مدة الاستحقاق (يوم)${I(p+'.lcDays',f.lcDays,'int')}</label>
+          <label class="f">الهامش النقدي %${I(p+'.cashMarginPct',f.cashMarginPct,'num')}</label>
+          <div class="f"><span>&nbsp;</span>${CHK(p+'.convertible',f.convertible,'يسمح بالتحويل لتمويل اعتماد',true)}</div>
+          ${f.convertible?`<label class="f">يتحول إلى التسهيل${SEL(p+'.lcfTargetId',f.lcfTargetId,[['','نفس الحد'],...E.facilities.filter(x=>x.id!==f.id).map(x=>[x.id,x.label])])}</label>`:''}`:''}
+        <label class="f wide">ملاحظة${I(p+'.note',f.note)}</label>
+      </div></div>`}).join('');
+  const log=(E.changeLog||[]).slice().reverse().map(c=>`<div><b>${fmtD(c.at.slice(0,10))}</b> — ${esc(c.by||'')}<br>${c.items.map(esc).join('<br>')}</div>`).join('');
+  return `<section class="panel" data-scope="bank">
+    <div class="ph"><h2>${esc(E.name||'بنك جديد')}</h2><span class="muted" id="bk-state">${S.bankDirty?'تعديلات غير محفوظة':''}</span></div>
+    <fieldset><legend>بيانات البنك والاتفاقية</legend>
+      <label class="f">اسم البنك${I('name',E.name)}</label>
+      <label class="f">رقم الاتفاقية${I('agreementNo',E.agreementNo)}</label>
+      <label class="f">تاريخ الاتفاقية${I('startDate',E.startDate,'date')}</label>
+      <label class="f">تاريخ التجديد / الانتهاء${I('renewalDate',E.renewalDate,'date')}</label>
+      <label class="f">مسؤول العلاقة / التواصل${I('contact',E.contact)}</label>
+      <label class="f">أساس الأيام الافتراضي${SEL('basis',E.basis||360,[['360','فعلي/360'],['365','فعلي/365']],false,'num')}</label>
+      <label class="f">ترحيل الاستحقاق الواقع في عطلة${SEL('shiftRule',E.shiftRule||'default',[['default','حسب الإعدادات العامة ('+SHIFT[S.settings.shiftRule]+')'],...Object.entries(SHIFT)])}</label>
+      <div class="f"><span>&nbsp;</span>${CHK('active',E.active!==false,'البنك مفعّل')}</div>
+      <label class="f wide">ملاحظات${I('notes',E.notes)}</label>
+    </fieldset>
+    <div class="ph"><h3>التسهيلات والحدود (${(E.facilities||[]).length})</h3><button type="button" class="btn sm" id="facAdd">إضافة تسهيل</button></div>
+    ${facs||'<div class="empty">لا توجد تسهيلات لهذا البنك.</div>'}
+    <details ${log?'':'hidden'}><summary>سجل تعديل الشروط (${(E.changeLog||[]).length})</summary><div class="log" style="margin-top:8px">${log}</div></details>
+    <div id="bk-msg"></div>
+    <div class="stickybar"><button class="btn pri" id="bkSave">حفظ البنك والشروط</button><button class="btn" id="bkDiscard">تجاهل التعديلات</button><span style="flex:1"></span>${bankById(E.id)?`<span id="bk-delbox"><button class="btn dng" id="bkDel">حذف البنك</button></span>`:''}</div>
+  </section>`;
+}
+function diffBank(o,n){
+  const out=[],v=x=>x==null||x===''?'—':Array.isArray(x)?(x.map(y=>typeof y==='object'?(y.name||'')+' '+(y.value??''):({bullet:'دفعة واحدة',installments:'أقساط'}[y]||y)).join('، ')||'—'):x===true?'نعم':x===false?'لا':String(x);
+  if(!o){out.push('إنشاء البنك');return out}
+  for(const k in BANK_FIELDS)if(JSON.stringify(o[k]??null)!==JSON.stringify(n[k]??null))out.push(`${BANK_FIELDS[k]}: ${v(o[k])} ← ${v(n[k])}`);
+  const om=Object.fromEntries((o.facilities||[]).map(f=>[f.id,f]));const nm=Object.fromEntries((n.facilities||[]).map(f=>[f.id,f]));
+  for(const f of n.facilities||[]){const of=om[f.id];if(!of){out.push(`إضافة تسهيل «${f.label}» بحد ${fmt0(f.limit)}`);continue}
+    for(const k in FAC_FIELDS)if(JSON.stringify(of[k]??null)!==JSON.stringify(f[k]??null))out.push(`«${f.label}» — ${FAC_FIELDS[k]}: ${v(of[k])} ← ${v(f[k])}`)}
+  for(const f of o.facilities||[])if(!nm[f.id])out.push(`حذف تسهيل «${f.label}»`);
+  return out;
+}
+document.addEventListener('click',async e=>{
+  if(S.view!=='banks')return;const E=S.bankEdit;
+  const sb=e.target.closest('[data-selbank]');if(sb){if(S.bankDirty&&sb.dataset.selbank!==S.selBank){toast('احفظ تعديلات البنك الحالي أو تجاهلها أولاً.');return}S.selBank=sb.dataset.selbank;S.bankEdit=null;vBanks();return}
+  if(e.target.id==='bkAdd'||e.target.id==='bkCopy'){if(S.bankDirty){toast('احفظ تعديلات البنك الحالي أو تجاهلها أولاً.');return}
+    let nb;if(e.target.id==='bkCopy'&&E){nb=clone(E);nb.name=E.name+' (نسخة)';const map={};nb.facilities.forEach(f=>{const n=rid('f');map[f.id]=n;f.id=n});nb.facilities.forEach(f=>{if(f.parentId)f.parentId=map[f.parentId]||null;if(f.lcfTargetId)f.lcfTargetId=map[f.lcfTargetId]||null})}
+    else nb={name:'',active:true,agreementNo:null,startDate:null,renewalDate:null,contact:null,basis:360,shiftRule:'default',notes:null,facilities:[]};
+    nb.id=rid('b');nb.order=S.banks.length+1;nb.changeLog=[];S.bankEdit=nb;S.selBank=nb.id;S.bankDirty=true;vBanks();return}
+  if(!E)return;const y=window.scrollY,re=()=>{S.bankDirty=true;vBanks();window.scrollTo(0,y)};
+  if(e.target.id==='facAdd'){E.facilities.push(newFacility());re();return}
+  const fd=e.target.closest('[data-facdel]');if(fd&&!fd.disabled){const f=E.facilities[+fd.dataset.facdel];E.facilities.splice(+fd.dataset.facdel,1);E.facilities.forEach(x=>{if(x.parentId===f.id)x.parentId=null;if(x.lcfTargetId===f.id)x.lcfTargetId=null});re();return}
+  const fa=e.target.closest('[data-feeadd]');if(fa){const f=E.facilities[+fa.dataset.feeadd];(f.fees||(f.fees=[])).push({name:'عمولة',kind:'pct',value:0});re();return}
+  const fx=e.target.closest('[data-feedel]');if(fx){const [i,j]=fx.dataset.feedel.split('.').map(Number);E.facilities[i].fees.splice(j,1);re();return}
+  if(e.target.id==='bkDiscard'){S.bankDirty=false;S.bankEdit=null;if(!bankById(S.selBank))S.selBank=null;vBanks();return}
+  if(e.target.id==='bkDel'){if(S.loans.some(l=>l.bankId===E.id)){$('#bk-msg').innerHTML='<div class="msg bad">لا يمكن حذف بنك عليه قروض مسجلة. ألغِ تفعيله بدلاً من ذلك.</div>';return}
+    $('#bk-delbox').innerHTML='<button class="btn dng" id="bkDelOk">تأكيد الحذف</button> <button class="btn" id="bkDelNo">إلغاء</button>';return}
+  if(e.target.id==='bkDelNo'){vBanks();return}
+  if(e.target.id==='bkDelOk'){if(await save([{col:'banks',id:E.id,del:true}],'تم حذف البنك')){S.bankDirty=false;S.bankEdit=null;S.selBank=null;vBanks()}return}
+  if(e.target.id==='bkSave'){
+    const msg=$('#bk-msg'),fail=m=>{msg.innerHTML=`<div class="msg bad">${esc(m)}</div>`;msg.scrollIntoView({block:'center'})};
+    E.name=(E.name||'').trim();if(!E.name)return fail('اكتب اسم البنك.');
+    if(S.banks.some(b=>b.id!==E.id&&b.name===E.name))return fail('يوجد بنك بنفس الاسم.');
+    for(const f of E.facilities){f.label=(f.label||'').trim();if(!f.label)return fail('كل تسهيل يحتاج اسماً.');if(!f.noLimit&&!(f.limit>=0))return fail(`حد «${f.label}» غير صحيح.`);
+      if(!(f.repay||[]).length)return fail(`اختر طريقة سداد واحدة على الأقل لـ«${f.label}».`);
+      if(f.parentId){let p=f.parentId,seen=new Set([f.id]);while(p){if(seen.has(p))return fail(`علاقة الحد الفرعي في «${f.label}» دائرية.`);seen.add(p);p=E.facilities.find(x=>x.id===p)?.parentId}}
+      if(f.rateType==='benchmark'&&!f.benchmarkId)return fail(`اختر المؤشر لـ«${f.label}».`)}
+    const old=bankById(E.id);const items=diffBank(old?Object.fromEntries(Object.entries(old).filter(([k])=>k!=='id')):null,E);
+    if(old&&!items.length){S.bankDirty=false;toast('لا توجد تغييرات');return}
+    const doc=clone(E);delete doc.id;doc.changeLog=[...(doc.changeLog||[]),{at:new Date().toISOString(),by:S.user,items}].slice(-200);
+    if(await save([{col:'banks',id:E.id,doc}],'تم حفظ البنك')){S.bankDirty=false;S.bankEdit=null;vBanks()}
+  }
+});
+
+/* ======================= settings ======================= */
+function vSettings(){
+  if(!S.setEdit){S.setEdit=clone(S.settings);S.setDirty=false}
+  const E=S.setEdit,usedTypes=new Set(S.facs.map(f=>f.typeId)),usedCur=new Set([...S.loans.map(l=>l.currency),...S.facs.map(f=>f.currency)]);
+  const usedBench=new Set(S.facs.map(f=>f.benchmarkId).filter(Boolean)),usedCF=new Set(S.loans.flatMap(l=>Object.keys(l.custom||{})));
+  $('#view').innerHTML=`<section class="panel" data-scope="set">
+   <div class="ph"><h2>الإعدادات</h2><span class="muted" id="st-state">${S.setDirty?'تعديلات غير محفوظة':''}</span></div>
+   <fieldset><legend>عام والتنبيهات</legend>
+     <label class="f">اسم الشركة (يظهر أعلى البرنامج)${I('companyName',E.companyName)}</label>
+     <label class="f">فترة التنبيه بالاستحقاقات (يوم)${I('alertDays',E.alertDays,'int')}</label>
+     <label class="f">الاستحقاق العاجل (يوم)${I('urgentDays',E.urgentDays,'int')}</label>
+     <label class="f">التنبيه بتجديد الاتفاقيات قبل (يوم)${I('renewalAlertDays',E.renewalAlertDays,'int')}</label>
+     <label class="f">تنبيه استخدام الحد عند (%)${I('utilWarn',E.utilWarn,'num')}</label>
+     <label class="f">عدد أشهر سلم الاستحقاقات${I('ladderMonths',E.ladderMonths,'int')}</label>
+     <div class="f"><span>&nbsp;</span>${CHK('notifyOnStart',E.notifyOnStart,'إشعار ويندوز بالمتأخر والعاجل عند فتح البرنامج')}</div>
+     <div class="f"><span>&nbsp;</span><label class="chk"><input type="checkbox" id="st-login" ${S.loginItem?'checked':''}>تشغيل البرنامج مع بدء ويندوز</label></div>
+   </fieldset>
+   <fieldset><legend>العملات وأسعار الصرف</legend><div class="f wide"><div class="tw"><table class="listedit"><thead><tr><th>الرمز</th><th>الاسم</th><th>سعر الصرف مقابل العملة الأساسية</th><th></th></tr></thead><tbody>
+     ${E.currencies.map((c,i)=>`<tr><td>${c.base||usedCur.has(c.code)?`<b>${esc(c.code)}</b>`:I('currencies.'+i+'.code',c.code)}</td><td>${I('currencies.'+i+'.name',c.name)}</td><td>${c.base?'1 (العملة الأساسية)':I('currencies.'+i+'.rate',c.rate,'num')}</td><td>${c.base||usedCur.has(c.code)?'':`<button class="btn sm dng" data-ldel="currencies.${i}">حذف</button>`}</td></tr>`).join('')}
+   </tbody></table></div><div><button class="btn sm" data-ladd="currencies">إضافة عملة</button></div></div></fieldset>
+   <fieldset><legend>المؤشرات المرجعية (سايبور، SOFR…)</legend><div class="f wide">
+     <p class="note">سجّل سعر المؤشر عند تغيره. القروض الجديدة على تسهيل «مؤشر + هامش» تأخذ آخر سعر مسجل حتى تاريخ بداية القرض.</p>
+     <div class="tw"><table class="listedit"><thead><tr><th>المؤشر</th><th>آخر سعر</th><th>إضافة قراءة جديدة: التاريخ</th><th>النسبة %</th><th></th></tr></thead><tbody>
+     ${E.benchmarks.map((b,i)=>{const h=(b.history||[]).slice().sort((a,c)=>a.date<c.date?1:-1);return `<tr><td>${I('benchmarks.'+i+'.name',b.name)}</td><td>${h[0]?`<b class="num">${h[0].rate}%</b> <span class="muted">${fmtD(h[0].date)}</span>`:'<span class="muted">لا يوجد</span>'}${h.length>1?`<details><summary>السجل (${h.length})</summary>${h.map((x,j)=>`<div class="row"><span class="num">${fmtD(x.date)} — ${x.rate}%</span><button class="btn sm" data-hdel="${i}.${x.date}">حذف</button></div>`).join('')}</details>`:''}</td>
+       <td><input type="date" id="bh-d-${i}" value="${todayStr()}"></td><td><input type="number" step="any" id="bh-r-${i}"></td><td class="row"><button class="btn sm" data-hadd="${i}">إضافة</button>${usedBench.has(b.id)?'':`<button class="btn sm dng" data-ldel="benchmarks.${i}">حذف</button>`}</td></tr>`}).join('')}
+     </tbody></table></div><div><button class="btn sm" data-ladd="benchmarks">إضافة مؤشر</button></div></div></fieldset>
+   <fieldset><legend>العطل وترحيل الاستحقاق</legend>
+     <div class="f wide"><span>أيام عطلة نهاية الأسبوع</span><div class="row">${WD.map((d,i)=>`<label class="chk"><input type="checkbox" data-wd="${i}" ${E.weekendDays.includes(i)?'checked':''}>${d}</label>`).join('')}</div></div>
+     <label class="f">الاستحقاق الواقع في عطلة يُرحَّل إلى${SEL('shiftRule',E.shiftRule,Object.entries(SHIFT))}</label>
+     <div class="f wide"><span>الإجازات الرسمية (عيد الفطر، الأضحى، اليوم الوطني…)</span><div class="tw"><table class="listedit"><thead><tr><th>التاريخ</th><th>المناسبة</th><th></th></tr></thead><tbody>
+       ${E.holidays.map((h,i)=>`<tr><td>${I('holidays.'+i+'.date',h.date,'date')}</td><td>${I('holidays.'+i+'.name',h.name)}</td><td><button class="btn sm dng" data-ldel="holidays.${i}">حذف</button></td></tr>`).join('')||'<tr><td colspan="3" class="muted">لا توجد إجازات مسجلة</td></tr>'}
+     </tbody></table></div><div><button class="btn sm" data-ladd="holidays">إضافة إجازة</button></div></div>
+   </fieldset>
+   <fieldset><legend>أنواع التسهيلات</legend><div class="f wide">
+     <p class="note">«السلوك» يحدد الحقول التي تظهر للقرض: الاعتماد المستندي يظهر له رقم الاعتماد الرئيسي والهامش النقدي وخيار التحويل، والطويل يُعرض في جدول القروض الطويلة.</p>
+     <div class="tw"><table class="listedit"><thead><tr><th>اسم النوع</th><th>السلوك</th><th></th></tr></thead><tbody>
+     ${E.facilityTypes.map((t,i)=>`<tr><td>${I('facilityTypes.'+i+'.name',t.name)}</td><td>${usedTypes.has(t.id)?esc(BEH[t.behavior]):SEL('facilityTypes.'+i+'.behavior',t.behavior,Object.entries(BEH))}</td><td>${usedTypes.has(t.id)?'<span class="muted">مستخدم</span>':`<button class="btn sm dng" data-ldel="facilityTypes.${i}">حذف</button>`}</td></tr>`).join('')}
+     </tbody></table></div><div><button class="btn sm" data-ladd="facilityTypes">إضافة نوع</button></div></div></fieldset>
+   <fieldset><legend>طرق الدفع</legend><div class="f wide"><div class="tw"><table class="listedit"><tbody>
+     ${E.paymentMethods.map((m,i)=>`<tr><td>${I('paymentMethods.'+i,m)}</td><td style="width:80px"><button class="btn sm dng" data-ldel="paymentMethods.${i}">حذف</button></td></tr>`).join('')}
+     </tbody></table></div><div><button class="btn sm" data-ladd="paymentMethods">إضافة طريقة</button></div></div></fieldset>
+   <fieldset><legend>حقول إضافية في شاشة القرض</legend><div class="f wide">
+     <p class="note">أضف أي حقل تحتاجه (مثل: الغرض من التمويل، مركز التكلفة، رقم أمر الشراء، المورد) وسيظهر في شاشة القرض الجديد وفي التصدير.</p>
+     <div class="tw"><table class="listedit"><thead><tr><th>اسم الحقل</th><th>النوع</th><th>الخيارات (للقائمة، افصل بفاصلة)</th><th>يظهر لـ</th><th>إلزامي</th><th>عمود في السجل</th><th></th></tr></thead><tbody>
+     ${E.customFields.map((c,i)=>`<tr><td>${I('customFields.'+i+'.name',c.name)}</td><td>${SEL('customFields.'+i+'.type',c.type,[['text','نص'],['number','رقم'],['date','تاريخ'],['list','قائمة اختيار']],true)}</td><td>${c.type==='list'?`<input data-opts="${i}" value="${esc((c.options||[]).join('، '))}">`:'<span class="muted">—</span>'}</td><td>${SEL('customFields.'+i+'.appliesTo',c.appliesTo||'all',[['all','كل التسهيلات'],...Object.entries(BEH)])}</td><td><input type="checkbox" data-p="customFields.${i}.required" ${c.required?'checked':''}></td><td><input type="checkbox" data-p="customFields.${i}.showInList" ${c.showInList?'checked':''}></td><td>${usedCF.has(c.id)?'<span class="muted">مستخدم</span>':`<button class="btn sm dng" data-ldel="customFields.${i}">حذف</button>`}</td></tr>`).join('')||'<tr><td colspan="7" class="muted">لا توجد حقول إضافية</td></tr>'}
+     </tbody></table></div><div><button class="btn sm" data-ladd="customFields">إضافة حقل</button></div></div></fieldset>
+   <div id="st-msg"></div>
+   <div class="stickybar"><button class="btn pri" id="stSave">حفظ الإعدادات</button><button class="btn" id="stDiscard">تجاهل التعديلات</button></div>
+  </section>
+  <section class="panel"><div class="ph"><h2>البيانات والنسخ الاحتياطي</h2></div>
+    <p class="note">مجلد البيانات الحالي: <b class="num">${esc(S.dataDir)}</b><br>لتشغيل البرنامج على أكثر من جهاز (أنت والمحاسب) اختر مجلداً مشتركاً على الشبكة أو OneDrive من الجهازين. تُحفظ نسخة احتياطية يومية تلقائياً داخل مجلد backups.</p>
+    <div class="row"><button class="btn" id="dirChoose">تغيير مجلد البيانات</button><button class="btn" id="dirOpen">فتح المجلد</button><button class="btn" id="bkExport">حفظ نسخة احتياطية</button><button class="btn" id="bkImport">استرجاع نسخة احتياطية</button></div>
+  </section>
+  <section class="panel" id="impPanel"><div class="ph"><h2>استيراد من Excel</h2><div class="row"><button class="btn" id="tplSave">حفظ نموذج الاستيراد الفارغ</button><button class="btn pri" id="xlImport">استيراد من ملف Excel</button></div></div>
+    <p class="note">املأ النموذج (ورقة «البنوك والحدود» وورقة «القروض» بصف لكل قسط) ثم استورده. تظهر معاينة بالأعداد والأخطاء قبل الحفظ.</p>
+    <div id="impBody">${S.imp?impPreview():''}</div>
+  </section>`;
+}
+const LIST_NEW={currencies:()=>({code:'EUR',name:'يورو',rate:4.1,base:false}),benchmarks:()=>({id:rid('bm'),name:'مؤشر جديد',history:[]}),holidays:()=>({date:todayStr(),name:''}),
+  facilityTypes:()=>({id:rid('t'),name:'نوع جديد',behavior:'short'}),paymentMethods:()=>'طريقة جديدة',customFields:()=>({id:rid('cf'),name:'حقل جديد',type:'text',options:[],appliesTo:'all',required:false,showInList:false})};
+document.addEventListener('change',e=>{if(S.view!=='settings'||!S.setEdit)return;
+  if(e.target.dataset.wd!=null){const d=+e.target.dataset.wd,a=S.setEdit.weekendDays;if(e.target.checked&&!a.includes(d))a.push(d);if(!e.target.checked)a.splice(a.indexOf(d),1);S.setDirty=true;markDirty('set')}
+  if(e.target.dataset.opts!=null){S.setEdit.customFields[+e.target.dataset.opts].options=e.target.value.split(/[,،]/).map(s=>s.trim()).filter(Boolean);S.setDirty=true;markDirty('set')}
+  if(e.target.id==='st-login'){window.api.setLoginItem(e.target.checked).then(v=>{S.loginItem=v;toast(v?'سيعمل البرنامج مع بدء ويندوز':'تم إلغاء التشغيل مع ويندوز')}).catch(er=>toast(er.message))}
+});
+document.addEventListener('click',async e=>{
+  if(S.view!=='settings')return;const E=S.setEdit,y=window.scrollY,re=()=>{S.setDirty=true;vSettings();window.scrollTo(0,y)};
+  const la=e.target.closest('[data-ladd]');if(la){E[la.dataset.ladd].push(LIST_NEW[la.dataset.ladd]());re();return}
+  const ld=e.target.closest('[data-ldel]');if(ld){const [k,i]=ld.dataset.ldel.split('.');E[k].splice(+i,1);re();return}
+  const ha=e.target.closest('[data-hadd]');if(ha){const i=+ha.dataset.hadd,d=$('#bh-d-'+i).value,r=$('#bh-r-'+i).value;if(!d||r===''){toast('أدخل التاريخ والنسبة');return}
+    const b=E.benchmarks[i];b.history=(b.history||[]).filter(x=>x.date!==d);b.history.push({date:d,rate:+r});re();return}
+  const hd=e.target.closest('[data-hdel]');if(hd){const [i,d]=[+hd.dataset.hdel.split('.')[0],hd.dataset.hdel.slice(hd.dataset.hdel.indexOf('.')+1)];E.benchmarks[i].history=E.benchmarks[i].history.filter(x=>x.date!==d);re();return}
+  if(e.target.id==='stDiscard'){S.setEdit=null;S.setDirty=false;vSettings();return}
+  if(e.target.id==='stSave'){
+    const fail=m=>{$('#st-msg').innerHTML=`<div class="msg bad">${esc(m)}</div>`};
+    const codes=E.currencies.map(c=>(c.code||'').trim().toUpperCase());if(codes.some(c=>!c)||new Set(codes).size!==codes.length)return fail('رموز العملات يجب أن تكون مكتملة وغير مكررة.');
+    E.currencies.forEach((c,i)=>{c.code=codes[i];if(!c.base&&!(c.rate>0))c.rate=1});
+    if(E.facilityTypes.some(t=>!(t.name||'').trim()))return fail('كل نوع تسهيل يحتاج اسماً.');
+    if(E.customFields.some(c=>!(c.name||'').trim()))return fail('كل حقل إضافي يحتاج اسماً.');
+    E.paymentMethods=E.paymentMethods.map(s=>(s||'').trim()).filter(Boolean);E.holidays=E.holidays.filter(h=>h.date);
+    for(const k of ['alertDays','urgentDays','renewalAlertDays'])E[k]=Math.max(0,+E[k]||DEF[k]);E.utilWarn=Math.min(100,Math.max(1,+E.utilWarn||90));E.ladderMonths=Math.min(12,Math.max(3,+E.ladderMonths||6));
+    if(await save([{col:'settings',doc:clone(E)}],'تم حفظ الإعدادات')){S.setEdit=null;S.setDirty=false;S.dueDays=null;vSettings()}return}
+  if(e.target.id==='dirChoose'){if(S.setDirty){toast('احفظ الإعدادات أولاً');return}try{const r=await window.api.chooseDir();if(r){applyData(r.data);S.dataDir=r.dataDir;S.setEdit=null;toast('تم تغيير مجلد البيانات');render()}}catch(er){toast(er.message)}return}
+  if(e.target.id==='dirOpen'){window.api.openDir();return}
+  if(e.target.id==='bkExport'){try{if(await window.api.exportBackup())toast('تم حفظ النسخة')}catch(er){toast(er.message)}return}
+  if(e.target.id==='bkImport'){try{const d=await window.api.importBackup();if(d){applyData(d);S.setEdit=null;toast('تم استرجاع النسخة');render()}}catch(er){toast(er.message)}return}
+});
+
+
+/* ======================= Excel import ======================= */
+const H=v=>String(v??'').replace(/\s+/g,' ').trim();
+function xlDate(v){if(v==null||v==='')return null;if(typeof v==='number'){if(v<1)return null;return D(Math.round((v-25569)*864e5))}
+  const t=String(v).trim();let m;if(m=t.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/))return `${m[1]}-${pad(m[2])}-${pad(m[3])}`;if(m=t.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})/))return `${m[3]}-${pad(m[2])}-${pad(m[1])}`;return 'bad'}
+const xlNum=v=>v==null||v===''?null:typeof v==='number'?v:(isNaN(+String(v).replace(/[,\s]/g,''))?NaN:+String(v).replace(/[,\s]/g,''));
+const yes=v=>/^(نعم|yes|y|true|1|✓)$/i.test(H(v));
+function curCode(v){const t=H(v);if(!t)return null;const c=S.settings.currencies.find(c=>c.code.toUpperCase()===t.toUpperCase()||c.name===t||c.name.startsWith(t)||t.startsWith(c.name.split(' ')[0]));return c?c.code:(t==='ريال'?'SAR':t==='دولار'?'USD':t.toUpperCase())}
+function sheetObjs(rows,need){
+  const hi=rows.findIndex(r=>r&&need.every(n=>r.some(c=>H(c).startsWith(n))));if(hi<0)return null;
+  const hdr=rows[hi].map(H);const col=n=>hdr.findIndex(h=>h.startsWith(n));
+  return {col,rows:rows.slice(hi+1).map((r,i)=>({r:r||[],n:hi+i+2})).filter(x=>x.r.some(c=>c!=null&&H(c)!==''))};
+}
+function buildImport(file,sheets){
+  const errs=[],warn=[];const names=Object.keys(sheets);
+  const bs=names.find(n=>n.includes('البنوك')),ls=names.find(n=>n.includes('القروض'));
+  if(!bs&&!ls)return{file,errs:['الملف لا يحتوي ورقة «البنوك والحدود» أو «القروض». استخدم نموذج الاستيراد.'],warn,banks:[],loans:[]};
+  const banks=S.imp_mode==='replace'?[]:clone(S.banks).map(b=>({...b,_existing:true}));
+  const findBank=name=>banks.find(b=>b.name===name);
+  const typeFor=t=>{t=H(t);return S.settings.facilityTypes.find(x=>x.name===t)||S.settings.facilityTypes.find(x=>t&&(x.name.includes(t)||t.includes(x.name)))};
+  const pending=[];
+  if(bs){const o=sheetObjs(sheets[bs],['البنك','اسم التسهيل']);
+    if(!o)errs.push(`ورقة «${bs}»: لم أجد صف العناوين (البنك، اسم التسهيل…).`);
+    else{const c=o.col;o.rows.forEach(({r,n})=>{const bn=H(r[c('البنك')]),fl=H(r[c('اسم التسهيل')]);
+      if(!bn||!fl){errs.push(`البنوك، صف ${n}: البنك واسم التسهيل مطلوبان.`);return}
+      const ty=typeFor(r[c('نوع التسهيل')]);if(!ty){errs.push(`البنوك، صف ${n}: نوع التسهيل «${H(r[c('نوع التسهيل')])}» غير معروف. الأنواع: ${S.settings.facilityTypes.map(t=>t.name).join('، ')}.`);return}
+      const noLim=yes(r[c('بدون سقف')]),lim=xlNum(r[c('الحد')]);if(!noLim&&(lim==null||isNaN(lim))){errs.push(`البنوك، صف ${n}: الحد غير صحيح.`);return}
+      let b=findBank(bn);if(!b){b={id:rid('b'),name:bn,active:true,agreementNo:null,startDate:null,renewalDate:null,contact:null,basis:360,shiftRule:'default',notes:null,facilities:[],changeLog:[],order:banks.length+1};banks.push(b)}
+      let f=b.facilities.find(x=>x.label===fl);const isNew=!f;if(!f){f=newFacility();f.label=fl;b.facilities.push(f)}
+      f.typeId=ty.id;f.noLimit=noLim;f.limit=noLim?0:lim;const cc=curCode(r[c('عملة الحد')]);if(cc)f.currency=cc;
+      if(isNew){if(ty.behavior==='lc'){f.repay=['bullet'];f.maxInstallments=1;f.maxUnit='d';f.defaultUnit='d';f.maxTenor=120;f.defaultTenor=120;f.lcDays=120;f.currency=cc||'USD'}if(ty.behavior==='long'){f.repay=['installments'];f.maxTenor=null;f.maxInstallments=null;f.defaultTenor=36}}
+      const mt=xlNum(r[c('أقصى مدة')]);if(mt){f.maxTenor=mt;f.maxUnit='m';if(ty.behavior!=='lc'){f.defaultTenor=Math.min(f.defaultTenor||mt,mt)}}
+      const ld=xlNum(r[c('مدة الاعتماد')]);if(ld){f.lcDays=ld;if(ty.behavior==='lc'){f.maxTenor=ld;f.defaultTenor=ld;f.maxUnit='d';f.defaultUnit='d'}}
+      const nt=H(r[c('ملاحظة')]);if(nt)f.note=nt;
+      pending.push({b,f,parent:H(r[c('حد فرعي من')]),target:H(r[c('يتحول إلى')]),n});
+      b._touched=true;
+    });
+    pending.forEach(({b,f,parent,target,n})=>{
+      if(parent){const p=b.facilities.find(x=>x.label===parent);if(!p||p===f)errs.push(`البنوك، صف ${n}: «حد فرعي من» = «${parent}» غير موجود في ${b.name}.`);else f.parentId=p.id}
+      if(target){const t=b.facilities.find(x=>x.label===target);if(!t)errs.push(`البنوك، صف ${n}: «يتحول إلى» = «${target}» غير موجود في ${b.name}.`);else{f.convertible=true;f.lcfTargetId=t.id===f.id?null:t.id}}
+    })}}
+  const loans=[];
+  if(ls){const o=sheetObjs(sheets[ls],['البنك','البيان']);
+    if(!o)errs.push(`ورقة «${ls}»: لم أجد صف العناوين (البنك، البيان…).`);
+    else{const c=o.col,groups=new Map();
+      o.rows.forEach(({r,n})=>{const bn=H(r[c('البنك')]),nm=H(r[c('البيان')]),fl=H(r[c('اسم التسهيل')]);
+        if(!bn||!nm){errs.push(`القروض، صف ${n}: البنك والبيان مطلوبان.`);return}
+        const b=findBank(bn);if(!b){errs.push(`القروض، صف ${n}: البنك «${bn}» غير موجود. أضفه في ورقة البنوك والحدود.`);return}
+        const f=fl?b.facilities.find(x=>x.label===fl):b.facilities.length===1?b.facilities[0]:null;if(!f){errs.push(`القروض، صف ${n}: التسهيل «${fl}» غير موجود في ${bn}.`);return}
+        const due=xlDate(r[c('تاريخ الاستحقاق')]),st=xlDate(r[c('تاريخ البداية')]);
+        if(!due||due==='bad'){errs.push(`القروض، صف ${n}: تاريخ الاستحقاق غير صحيح.`);return}if(st==='bad'){errs.push(`القروض، صف ${n}: تاريخ البداية غير صحيح.`);return}
+        let pr=xlNum(r[c('أصل القسط')]),pf=xlNum(r[c('الربح')])||0,paid=xlNum(r[c('المسدد')])||0;
+        const cc=curCode(r[c('العملة')])||baseCur(),fc=xlNum(r[c('المبلغ بالعملة')]),fx=xlNum(r[c('سعر الصرف')])||cur(cc)?.rate||1;
+        if((pr==null||pr==='')&&fc)pr=r2(fc*fx);
+        if(pr==null||isNaN(pr)||isNaN(pf)||isNaN(paid)||pr<0){errs.push(`القروض، صف ${n}: المبالغ غير صحيحة.`);return}
+        const key=b.id+'|'+nm;if(!groups.has(key))groups.set(key,{b,f,nm,long:/طويل|long/i.test(H(r[c('أجل القرض')])),ref:H(r[c('رقم حساب التمويل')])||null,master:H(r[c('رقم الاعتماد')])||null,start:st,cc,fx,fc:0,lines:[]});
+        const g=groups.get(key);if(st&&(!g.start||st<g.start))g.start=st;if(fc)g.fc+=fc;
+        const pp=r2(Math.min(paid,pr)),pfp=r2(Math.min(Math.max(0,paid-pr),pf));
+        g.lines.push({due,principal:r2(pr),profit:r2(pf),paidPrincipal:pp,paidProfit:pfp,paidDate:pp||pfp?due:null});
+      });
+      const existing=new Set(S.imp_mode==='replace'?[]:S.loans.map(l=>l.bankId+'|'+l.name));let dup=0;
+      groups.forEach((g,key)=>{if(existing.has(key)){dup++;return}g.lines.sort((a,b)=>a.due<b.due?-1:1);const beh=g.long?'long':behaviorOf(g.f.typeId);
+        loans.push({term:beh==='long'?'long':'short',behavior:beh,bankId:g.b.id,bank:g.b.name,facilityId:g.f.id,limitId:g.f.id,facility:g.f.label,name:g.nm,ref:g.ref,master:beh==='lc'?g.master:null,
+          start:g.start,currency:g.cc,fxRate:g.cc===baseCur()?1:g.fx,amountFC:g.cc===baseCur()?null:(g.fc||null),repay:g.lines.length>1?'installments':'bullet',terms:null,fees:null,custom:{},notes:null,
+          lines:g.lines,payments:[],source:'excel-import',createdAt:new Date().toISOString(),createdBy:S.user})});
+      if(dup)warn.push(`${dup} قرض موجود مسبقاً بنفس البنك والبيان، لن يُستورد مرة أخرى.`);
+    }}
+  return{file,errs,warn,banks:banks.filter(b=>b._touched),loans,sheets};
+}
+function impPreview(){
+  const I=S.imp,fc=I.banks.reduce((a,b)=>a+b.facilities.length,0),nl=I.loans.reduce((a,l)=>a+l.lines.length,0),out=I.loans.reduce((a,l)=>a+outstanding(l),0);
+  return `<div class="msgs">
+   <div class="calc"><div><span>الملف</span><b>${esc(I.file)}</b></div><div><span>بنوك</span><b class="num">${I.banks.length}</b></div><div><span>تسهيلات</span><b class="num">${fc}</b></div><div><span>قروض / أقساط</span><b class="num">${I.loans.length} / ${nl}</b></div><div><span>الأصل القائم</span><b class="num">${fmt(out)}</b></div></div>
+   ${I.warn.map(w=>`<div class="msg warn">${esc(w)}</div>`).join('')}
+   ${I.errs.length?`<div class="msg bad"><b>${I.errs.length} خطأ — صحّحها في الملف ثم أعد الاستيراد:</b><br>${I.errs.slice(0,40).map(esc).join('<br>')}${I.errs.length>40?'<br>…':''}</div>`:''}
+   <div class="seg"><label><input type="radio" name="impMode" value="merge" ${S.imp_mode!=='replace'?'checked':''}>إضافة إلى البيانات الحالية</label><label><input type="radio" name="impMode" value="replace" ${S.imp_mode==='replace'?'checked':''}>استبدال كل البنوك والقروض</label></div>
+   ${S.imp_mode==='replace'?'<div class="msg warn">سيتم حذف كل البنوك والقروض الحالية واستبدالها بمحتوى الملف. تُحفظ نسخة احتياطية تلقائياً.</div>':''}
+   <div class="row"><button class="btn pri" id="impGo" ${I.errs.length||(!I.banks.length&&!I.loans.length)?'disabled':''}>استيراد</button><button class="btn" id="impCancel">إلغاء</button></div></div>`;
+}
+document.addEventListener('change',e=>{if(e.target.name==='impMode'&&S.imp){S.imp_mode=e.target.value;S.imp=buildImport(S.imp.file,S.imp.sheets);$('#impBody').innerHTML=impPreview()}});
+document.addEventListener('click',async e=>{
+  if(S.view!=='settings')return;
+  if(e.target.id==='tplSave'){try{if(await window.api.saveTemplate())toast('تم حفظ النموذج')}catch(er){toast(er.message)}return}
+  if(e.target.id==='xlImport'){try{const r=await window.api.importXlsx();if(!r)return;S.imp_mode=S.loans.length||S.banks.length?'merge':'replace';S.imp=buildImport(r.file,r.sheets);$('#impBody').innerHTML=impPreview();$('#impPanel').scrollIntoView({block:'start'})}catch(er){toast('تعذّر قراءة الملف: '+er.message)}return}
+  if(e.target.id==='impCancel'){S.imp=null;$('#impBody').innerHTML='';return}
+  if(e.target.id==='impGo'&&S.imp){const I=S.imp,ops=[];
+    if(S.imp_mode==='replace'){S.loans.forEach(l=>ops.push({col:'loans',id:l.id,del:true}));S.banks.forEach(b=>ops.push({col:'banks',id:b.id,del:true}))}
+    I.banks.forEach(b=>{const d=clone(b);const id=d.id;delete d.id;delete d._touched;const ex=d._existing;delete d._existing;
+      d.changeLog=[...(d.changeLog||[]),{at:new Date().toISOString(),by:S.user,items:[(ex?'تحديث من ملف Excel: ':'إنشاء من ملف Excel: ')+I.file]}].slice(-200);ops.push({col:'banks',id,doc:d})});
+    I.loans.forEach(l=>ops.push({col:'loans',id:rid('L'),doc:l}));
+    if(await save(ops,`تم استيراد ${I.banks.length} بنك و${I.loans.length} قرض`)){S.imp=null;render()}}
+});
+
+/* ======================= boot ======================= */
+(async()=>{
+  try{
+    const r=await window.api.load();S.user=r.user;S.dataDir=r.dataDir;S.loginItem=r.loginItem;applyData(r.data);render();
+    window.api.onChanged(d=>{applyData(d);refresh();toast('تم تحديث البيانات من جهاز آخر')});
+    if(S.settings.notifyOnStart&&!S.notified){S.notified=true;const t=todayStr(),o=dueLines(l=>l.due<t),u=dueLines(l=>l.due>=t&&days(t,l.due)<=S.settings.urgentDays),rn=renewalAlerts().filter(x=>x.d<=0);
+      const parts=[];if(o.length)parts.push(o.length+' استحقاق متأخر');if(u.length)parts.push(u.length+' استحقاق خلال '+S.settings.urgentDays+' أيام');if(rn.length)parts.push(rn.length+' اتفاقية منتهية');
+      if(parts.length)window.api.notify('تنبيهات التسهيلات البنكية',parts.join('، ')).catch(()=>{})}
+  }catch(e){$('#view').innerHTML=`<section class="panel"><div class="msg bad">تعذّر فتح البيانات: ${esc(e.message)}</div></section>`}
+})();
+</script>
+</body>
+</html>
