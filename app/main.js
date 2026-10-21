@@ -292,6 +292,8 @@ ipcMain.handle('file:xlsx', ok(async (_e, name, sheets) => {
 
 // ---------- التحديثات من GitHub ----------
 const UPDATE_REPO = 'gamalelsayed-hub/bank-facilities';
+// مستودع عام فيه ملفات التنزيل فقط (بدون كود): لا يحتاج رمز وصول
+const RELEASES_REPO = 'gamalelsayed-hub/bank-facilities-releases';
 const GH_API = process.env.FAC_UPDATE_API || 'https://api.github.com';
 const verParts = v => String(v).replace(/^v/i, '').split('.').map(n => parseInt(n, 10) || 0);
 function cmpVer(a, b) { const x = verParts(a), y = verParts(b); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0) ? 1 : -1; } return 0; }
@@ -312,19 +314,30 @@ ipcMain.handle('update:setCfg', ok((_e, c) => {
   if ('auto' in c) cfg.updateAuto = !!c.auto;
   saveCfg(); return true;
 }));
-ipcMain.handle('update:check', ok(async () => {
+async function fetchReleases(repo, auth) {
+  const h = ghHeaders(); if (!auth) delete h.Authorization;
   let r;
-  try { r = await net.fetch(`${GH_API}/repos/${repoOf()}/releases?per_page=30`, { headers: ghHeaders() }); }
+  try { r = await net.fetch(`${GH_API}/repos/${repo}/releases?per_page=30`, { headers: h }); }
   catch (e) { throw new Error('تعذّر الاتصال بـ GitHub. تأكد من الإنترنت.'); }
-  if (r.status === 404) throw new Error(getToken() ? 'لم أجد المستودع. تأكد من اسمه ومن أن رمز الوصول يملك صلاحية عليه.' : 'لم أجد المستودع. إذا كان خاصاً أضف رمز وصول GitHub من الإعدادات ← التحديثات.');
+  if (r.status === 404) return null;
   if (r.status === 401) throw new Error('رمز وصول GitHub غير صالح أو منتهي.');
   if (r.status === 403) throw new Error('رفض GitHub الطلب (حد الطلبات أو صلاحية الرمز). حاول لاحقاً.');
   if (!r.ok) throw new Error('رد GitHub غير متوقع: ' + r.status);
   const list = await r.json();
-  const rel = list.filter(x => !x.draft && !x.prerelease && /^v?\d+\.\d+\.\d+$/.test(x.tag_name)).sort((a, b) => cmpVer(b.tag_name, a.tag_name))[0];
+  return list.filter(x => !x.draft && !x.prerelease && /^v?\d+\.\d+\.\d+$/.test(x.tag_name)).sort((a, b) => cmpVer(b.tag_name, a.tag_name))[0] || false;
+}
+ipcMain.handle('update:check', ok(async () => {
+  // أولاً مستودع التنزيلات العام، ثم مستودع الكود (يحتاج رمزاً إذا كان خاصاً)
+  let rel = null, source = 'public';
+  const pub = await fetchReleases(RELEASES_REPO, false);
+  let priv = null;
+  try { priv = await fetchReleases(repoOf(), true); } catch (e) { if (!pub) throw e; }
+  if (pub && (!priv || cmpVer(pub.tag_name, priv.tag_name) >= 0)) rel = pub;
+  else if (priv) { rel = priv; source = 'private'; }
+  if (pub === null && priv === null) throw new Error(getToken() ? 'لم أجد المستودع. تأكد من اسمه ومن أن رمز الوصول يملك صلاحية عليه.' : 'لم أجد مستودع التحديثات. إذا كان مستودع الكود خاصاً ولم يُنشأ مستودع التنزيلات العام، أضف رمز وصول من الإعدادات ← التحديثات.');
   if (!rel) return { current: app.getVersion(), latest: null };
   const asset = (rel.assets || []).find(a => /\.zip$/i.test(a.name));
-  return { current: app.getVersion(), latest: rel.tag_name.replace(/^v/i, ''), newer: cmpVer(rel.tag_name, app.getVersion()) > 0, notes: rel.body || '', date: rel.published_at,
+  return { current: app.getVersion(), latest: rel.tag_name.replace(/^v/i, ''), newer: cmpVer(rel.tag_name, app.getVersion()) > 0, notes: rel.body || '', date: rel.published_at, source,
     asset: asset ? { id: asset.id, name: asset.name, size: asset.size, url: asset.browser_download_url } : null, page: rel.html_url };
 }));
 function extractZip(zipBuf, dest) {
@@ -340,8 +353,10 @@ function extractZip(zipBuf, dest) {
 function writable(dir) { const t = path.join(dir, '.write-test-' + process.pid); try { fs.writeFileSync(t, 'x'); fs.unlinkSync(t); return true; } catch { return false; } }
 ipcMain.handle('update:install', ok(async (_e, info) => {
   if (!info || !info.asset) throw new Error('لا يوجد ملف تحديث في هذا الإصدار.');
-  const url = getToken() ? `${GH_API}/repos/${repoOf()}/releases/assets/${info.asset.id}` : info.asset.url;
-  const r = await net.fetch(url, { headers: ghHeaders('application/octet-stream') });
+  const usePriv = info.source === 'private' && getToken();
+  const url = usePriv ? `${GH_API}/repos/${repoOf()}/releases/assets/${info.asset.id}` : info.asset.url;
+  const hh = ghHeaders('application/octet-stream'); if (!usePriv) delete hh.Authorization;
+  const r = await net.fetch(url, { headers: hh });
   if (!r.ok) throw new Error('فشل تنزيل التحديث: ' + r.status);
   const total = +r.headers.get('content-length') || info.asset.size || 0; const reader = r.body.getReader(); const chunks = []; let got = 0, lastSent = 0;
   for (;;) { const { done, value } = await reader.read(); if (done) break; chunks.push(Buffer.from(value)); got += value.length;

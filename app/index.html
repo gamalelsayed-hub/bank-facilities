@@ -1265,7 +1265,7 @@ document.addEventListener('click',async e=>{
     await window.api.updateSetCfg(c);S.updCfg=await window.api.updateGetCfg();toast('تم حفظ إعدادات التحديث');vSettings()}catch(er){toast(er.message)}}
 });
 function updPanel(){const c=S.updCfg||{};return `<section class="panel" id="updPanel"><div class="ph"><h2>التحديثات</h2><span class="muted">الإصدار الحالي ${esc(c.version||'')}</span></div>
-  <p class="note">البرنامج يقرأ آخر إصدار منشور في صفحة Releases على GitHub. إذا كان المستودع <b>خاصاً</b> أضف رمز وصول (Fine-grained token) بصلاحية <b>Contents: Read-only</b> على هذا المستودع فقط. الرمز يُحفظ على هذا الجهاز فقط ولا يُكتب في ملف البيانات المشترك.</p>
+  <p class="note">البرنامج يبحث عن التحديثات في مستودع التنزيلات العام <b class="num">bank-facilities-releases</b> أولاً، ولا يحتاج أي رمز. إذا لم يكن موجوداً يبحث في مستودع الكود، وإذا كان خاصاً يحتاج رمز وصول (Fine-grained token) بصلاحية <b>Contents: Read-only</b>. الرمز يُحفظ مشفراً على هذا الجهاز فقط.</p>
   <fieldset><legend>إعدادات التحديث (لهذا الجهاز)</legend>
    <label class="f">المستودع (owner/repo)<input id="upd-repo" class="ltr" value="${esc(c.repo||'')}"></label>
    <label class="f">رمز وصول GitHub<input id="upd-token" class="ltr" type="password" placeholder="${c.hasToken?'محفوظ — اتركه فارغاً للإبقاء عليه':'github_pat_…'}"></label>

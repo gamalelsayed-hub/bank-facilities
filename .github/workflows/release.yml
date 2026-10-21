@@ -16,6 +16,9 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      # مفتاح مستودع التنزيلات العام (Repository secret). بدونه يُنشر الإصدار هنا فقط
+      RELEASES_TOKEN: ${{ secrets.RELEASES_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - name: Build Windows zip
@@ -32,4 +35,18 @@ jobs:
             gh release upload "$TAG" dist/BankFacilities-Windows.zip --clobber
           else
             gh release create "$TAG" dist/BankFacilities-Windows.zip --target "$GITHUB_SHA" --title "الإصدار $VER" --notes "$NOTES"
+          fi
+      - name: Publish to public downloads repository
+        if: env.RELEASES_TOKEN != ''
+        env:
+          GH_TOKEN: ${{ env.RELEASES_TOKEN }}
+          NOTES: ${{ inputs.notes }}
+        run: |
+          VER=$(node -p "require('./app/package.json').version")
+          TAG="v$VER"; DL=gamalelsayed-hub/bank-facilities-releases
+          [ -n "$NOTES" ] || NOTES="الإصدار $VER"
+          if gh release view "$TAG" -R "$DL" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/BankFacilities-Windows.zip -R "$DL" --clobber
+          else
+            gh release create "$TAG" dist/BankFacilities-Windows.zip -R "$DL" --title "الإصدار $VER" --notes "$NOTES"
           fi
