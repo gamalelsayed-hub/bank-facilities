@@ -4,6 +4,11 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      notes:
+        description: 'ملاحظات الإصدار (تظهر للمستخدم في نافذة التحديث)'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -18,13 +23,13 @@ jobs:
       - name: Publish release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NOTES: ${{ inputs.notes }}
         run: |
-          TAG="${GITHUB_REF_NAME}"
-          if [ "${GITHUB_REF_TYPE}" != "tag" ]; then TAG="build-$(date +%Y%m%d-%H%M)"; fi
+          VER=$(node -p "require('./app/package.json').version")
+          TAG="v$VER"
+          [ -n "$NOTES" ] || NOTES="الإصدار $VER"
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" dist/BankFacilities-Windows.zip --clobber
           else
-            gh release create "$TAG" dist/BankFacilities-Windows.zip \
-              --title "الإصدار ${TAG#v}" \
-              --notes "حمّل BankFacilities-Windows.zip، فك الضغط، وشغّل BankFacilities.exe. التعليمات في ملف «اقرأني» داخل المجلد."
+            gh release create "$TAG" dist/BankFacilities-Windows.zip --target "$GITHUB_SHA" --title "الإصدار $VER" --notes "$NOTES"
           fi

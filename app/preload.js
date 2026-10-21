@@ -13,6 +13,12 @@ contextBridge.exposeInMainWorld('api', {
   saveTemplate: () => call('xlsx:template'),
   printPDF: (name, landscape) => call('print:pdf', name, landscape),
   print: (landscape) => call('print:direct', landscape),
+  saveXlsx: (name, sheets) => call('file:xlsx', name, sheets),
+  updateGetCfg: () => call('update:getCfg'),
+  updateSetCfg: (c) => call('update:setCfg', c),
+  updateCheck: () => call('update:check'),
+  updateInstall: (info) => call('update:install', info),
+  onUpdateProgress: (fn) => ipcRenderer.on('update:progress', (_e, p) => fn(p)),
   notify: (title, body) => call('app:notify', title, body),
   onChanged: (fn) => ipcRenderer.on('data:changed', (_e, d) => fn(d)),
 });

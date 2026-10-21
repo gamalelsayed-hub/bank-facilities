@@ -2,7 +2,7 @@
 // البيانات تُحفظ في ملف JSON واحد داخل مجلد يختاره المستخدم (يمكن أن يكون مجلداً مشتركاً على الشبكة).
 // كل عملية حفظ تعيد قراءة الملف من القرص ثم تطبق التغيير على السجل المعني فقط،
 // حتى لا يمسح مستخدم تعديلات مستخدم آخر يعمل على نفس المجلد.
-const { app, BrowserWindow, ipcMain, dialog, Notification, shell, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Notification, shell, Menu, net, safeStorage } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -160,7 +160,7 @@ function unzipEntries(buf) {
     const name = buf.toString('utf8', p + 46, p + 46 + nlen);
     const lnlen = buf.readUInt16LE(off + 26), lxlen = buf.readUInt16LE(off + 28), start = off + 30 + lnlen + lxlen;
     const raw = buf.subarray(start, start + csize);
-    out[name] = () => (method === 8 ? zlib.inflateRawSync(raw) : raw).toString('utf8');
+    out[name] = () => (method === 8 ? zlib.inflateRawSync(raw) : Buffer.from(raw));
     p += 46 + nlen + xlen + clen;
   }
   return out;
@@ -170,7 +170,7 @@ const attr = (s, a) => { const m = s.match(new RegExp('(?:^|\\s)' + a + '="([^"]
 function colIndex(ref) { const l = ref.match(/^[A-Z]+/)[0]; let n = 0; for (const c of l) n = n * 26 + (c.charCodeAt(0) - 64); return n - 1; }
 function readXlsx(file) {
   const z = unzipEntries(fs.readFileSync(file));
-  const get = n => z[n] ? z[n]() : '';
+  const get = n => z[n] ? z[n]().toString('utf8') : '';
   const shared = [...get('xl/sharedStrings.xml').matchAll(/<si>([\s\S]*?)<\/si>/g)].map(m => [...m[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map(t => unxml(t[1])).join(''));
   const rels = {}; for (const m of get('xl/_rels/workbook.xml.rels').matchAll(/<Relationship\b([^>]*)\/?>/g)) rels[attr(m[1], 'Id')] = attr(m[1], 'Target');
   const sheets = {};
@@ -217,6 +217,169 @@ ipcMain.handle('print:pdf', ok(async (_e, name, landscape) => {
 ipcMain.handle('print:direct', ok((_e, landscape) => new Promise((res, rej) => {
   win.webContents.print({ printBackground: true, landscape: !!landscape }, (done, why) => (done || /cancel/i.test(why || '')) ? res(done) : rej(new Error(why)));
 })));
+
+// ---------- كتابة ملف Excel (xlsx) بدون مكتبات خارجية ----------
+const CRC_T = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(b) { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = CRC_T[(c ^ b[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+function zipFiles(files) {
+  const parts = [], cents = []; let off = 0;
+  for (const f of files) {
+    const name = Buffer.from(f.name, 'utf8'), data = Buffer.from(f.data, 'utf8'), comp = zlib.deflateRawSync(data), crc = crc32(data);
+    const lh = Buffer.alloc(30);
+    lh.writeUInt32LE(0x04034b50, 0); lh.writeUInt16LE(20, 4); lh.writeUInt16LE(0x0800, 6); lh.writeUInt16LE(8, 8); lh.writeUInt16LE(0x21, 12);
+    lh.writeUInt32LE(crc, 14); lh.writeUInt32LE(comp.length, 18); lh.writeUInt32LE(data.length, 22); lh.writeUInt16LE(name.length, 26);
+    parts.push(lh, name, comp);
+    const ch = Buffer.alloc(46);
+    ch.writeUInt32LE(0x02014b50, 0); ch.writeUInt16LE(20, 4); ch.writeUInt16LE(20, 6); ch.writeUInt16LE(0x0800, 8); ch.writeUInt16LE(8, 10); ch.writeUInt16LE(0x21, 14);
+    ch.writeUInt32LE(crc, 16); ch.writeUInt32LE(comp.length, 20); ch.writeUInt32LE(data.length, 24); ch.writeUInt16LE(name.length, 28); ch.writeUInt32LE(off, 42);
+    cents.push(ch, name); off += 30 + name.length + comp.length;
+  }
+  const cd = Buffer.concat(cents), end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(files.length, 8); end.writeUInt16LE(files.length, 10); end.writeUInt32LE(cd.length, 12); end.writeUInt32LE(off, 16);
+  return Buffer.concat([...parts, cd, end]);
+}
+const xesc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])).replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+function colName(i) { let s = ''; i++; while (i) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; }
+// sheets: [{name, rows:[[...]], totalRows:[index...]}]; الصف الأول عناوين
+function buildXlsx(sheets) {
+  const NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+  const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="${NS}"><numFmts count="2"><numFmt numFmtId="164" formatCode="#,##0.00"/><numFmt numFmtId="165" formatCode="yyyy-mm-dd"/></numFmts>`
+    + `<fonts count="3"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>`
+    + `<fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF0E6B5B"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE3F1ED"/></patternFill></fill></fills>`
+    + `<borders count="1"><border/></borders><cellStyleXfs count="1"><xf/></cellStyleXfs><cellXfs count="9">`
+    + `<xf/><xf fontId="1" fillId="2" applyFont="1" applyFill="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>`
+    + `<xf numFmtId="164" applyNumberFormat="1"/><xf numFmtId="165" applyNumberFormat="1"/><xf numFmtId="3" applyNumberFormat="1"/>`
+    + `<xf fontId="2" fillId="3" applyFont="1" applyFill="1"/><xf numFmtId="164" fontId="2" fillId="3" applyNumberFormat="1" applyFont="1" applyFill="1"/><xf numFmtId="165" fontId="2" fillId="3" applyNumberFormat="1" applyFont="1" applyFill="1"/><xf numFmtId="3" fontId="2" fillId="3" applyNumberFormat="1" applyFont="1" applyFill="1"/>`
+    + `</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+  const files = [], used = new Set();
+  const names = sheets.map((sh, i) => { let n = String(sh.name || ('Sheet' + (i + 1))).replace(/[\[\]:*?\/\\]/g, '-').slice(0, 31) || 'Sheet'; while (used.has(n)) n = n.slice(0, 28) + '_' + i; used.add(n); return n; });
+  sheets.forEach((sh, si) => {
+    const rows = sh.rows || [], tot = new Set(sh.totalRows || []), ints = new Set(sh.intCols || []), ncol = Math.max(1, ...rows.map(r => r.length));
+    const width = Array.from({ length: ncol }, (_, c) => Math.min(60, Math.max(8, ...rows.map(r => { const v = r[c]; return v == null ? 0 : (typeof v === 'number' ? 14 : String(v).length + 2); }))));
+    let x = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="${NS}" xmlns:r="${R}"><sheetViews><sheetView rightToLeft="1" workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>`;
+    x += `<cols>${width.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('')}</cols><sheetData>`;
+    rows.forEach((r, ri) => {
+      const t = tot.has(ri), head = ri === 0;
+      x += `<row r="${ri + 1}"${head ? ' ht="30" customHeight="1"' : ''}>`;
+      r.forEach((v, ci) => {
+        if (v == null || v === '') return; const ref = colName(ci) + (ri + 1);
+        if (head) { x += `<c r="${ref}" s="1" t="inlineStr"><is><t xml:space="preserve">${xesc(v)}</t></is></c>`; return; }
+        if (typeof v === 'number' && isFinite(v)) { x += `<c r="${ref}" s="${ints.has(ci) ? (t ? 8 : 4) : (t ? 6 : 2)}"><v>${v}</v></c>`; return; }
+        const m = typeof v === 'string' && v.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (m) { x += `<c r="${ref}" s="${t ? 7 : 3}"><v>${Date.UTC(+m[1], +m[2] - 1, +m[3]) / 864e5 + 25569}</v></c>`; return; }
+        x += `<c r="${ref}"${t ? ' s="5"' : ''} t="inlineStr"><is><t xml:space="preserve">${xesc(v)}</t></is></c>`;
+      });
+      x += `</row>`;
+    });
+    x += `</sheetData>`;
+    if (rows.length > 1) x += `<autoFilter ref="A1:${colName(ncol - 1)}${rows.length}"/>`;
+    x += `<pageMargins left="0.4" right="0.4" top="0.5" bottom="0.5" header="0.3" footer="0.3"/><pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0"/></worksheet>`;
+    files.push({ name: `xl/worksheets/sheet${si + 1}.xml`, data: x });
+  });
+  files.push({ name: '[Content_Types].xml', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${sheets.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}</Types>` });
+  files.push({ name: '_rels/.rels', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>` });
+  files.push({ name: 'xl/workbook.xml', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="${NS}" xmlns:r="${R}"><bookViews><workbookView/></bookViews><sheets>${names.map((n, i) => `<sheet name="${xesc(n)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('')}</sheets>${sheets.map((sh, i) => (sh.rows || []).length > 1 ? `<definedNames><definedName name="_xlnm._FilterDatabase" localSheetId="${i}" hidden="1">'${xesc(names[i]).replace(/'/g, "''")}'!$A$1:$${colName(Math.max(1, ...(sh.rows.map(r => r.length))) - 1)}$${sh.rows.length}</definedName></definedNames>` : '').join('').replace(/<\/definedNames><definedNames>/g, '')}</workbook>` });
+  files.push({ name: 'xl/_rels/workbook.xml.rels', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('')}<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>` });
+  files.push({ name: 'xl/styles.xml', data: styles });
+  return zipFiles(files);
+}
+ipcMain.handle('file:xlsx', ok(async (_e, name, sheets) => {
+  const r = await dialog.showSaveDialog(win, { defaultPath: path.join(app.getPath('documents'), name), filters: [{ name: 'Excel', extensions: ['xlsx'] }] });
+  if (r.canceled || !r.filePath) return false;
+  fs.writeFileSync(r.filePath, buildXlsx(sheets));
+  shell.openPath(r.filePath); return true;
+}));
+
+// ---------- التحديثات من GitHub ----------
+const UPDATE_REPO = 'gamalelsayed-hub/bank-facilities';
+const GH_API = process.env.FAC_UPDATE_API || 'https://api.github.com';
+const verParts = v => String(v).replace(/^v/i, '').split('.').map(n => parseInt(n, 10) || 0);
+function cmpVer(a, b) { const x = verParts(a), y = verParts(b); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0) ? 1 : -1; } return 0; }
+const repoOf = () => (cfg.updateRepo || UPDATE_REPO).trim();
+function getToken() {
+  if (cfg.updateTokenEnc) { try { return safeStorage.decryptString(Buffer.from(cfg.updateTokenEnc, 'base64')); } catch { return null; } }
+  return cfg.updateToken || null;
+}
+function setToken(t) {
+  delete cfg.updateToken; delete cfg.updateTokenEnc; if (!t) return;
+  if (safeStorage.isEncryptionAvailable()) cfg.updateTokenEnc = safeStorage.encryptString(t).toString('base64'); else cfg.updateToken = t;
+}
+function ghHeaders(accept) { const h = { 'Accept': accept || 'application/vnd.github+json', 'User-Agent': 'bank-facilities-app', 'X-GitHub-Api-Version': '2022-11-28' }; const tk = getToken(); if (tk) h.Authorization = 'Bearer ' + tk; return h; }
+ipcMain.handle('update:getCfg', ok(() => ({ repo: repoOf(), hasToken: !!getToken(), auto: cfg.updateAuto !== false, version: app.getVersion() })));
+ipcMain.handle('update:setCfg', ok((_e, c) => {
+  if ('repo' in c) cfg.updateRepo = (c.repo || '').trim() || undefined;
+  if ('token' in c) setToken((c.token || '').trim());
+  if ('auto' in c) cfg.updateAuto = !!c.auto;
+  saveCfg(); return true;
+}));
+ipcMain.handle('update:check', ok(async () => {
+  let r;
+  try { r = await net.fetch(`${GH_API}/repos/${repoOf()}/releases?per_page=30`, { headers: ghHeaders() }); }
+  catch (e) { throw new Error('تعذّر الاتصال بـ GitHub. تأكد من الإنترنت.'); }
+  if (r.status === 404) throw new Error(getToken() ? 'لم أجد المستودع. تأكد من اسمه ومن أن رمز الوصول يملك صلاحية عليه.' : 'لم أجد المستودع. إذا كان خاصاً أضف رمز وصول GitHub من الإعدادات ← التحديثات.');
+  if (r.status === 401) throw new Error('رمز وصول GitHub غير صالح أو منتهي.');
+  if (r.status === 403) throw new Error('رفض GitHub الطلب (حد الطلبات أو صلاحية الرمز). حاول لاحقاً.');
+  if (!r.ok) throw new Error('رد GitHub غير متوقع: ' + r.status);
+  const list = await r.json();
+  const rel = list.filter(x => !x.draft && !x.prerelease && /^v?\d+\.\d+\.\d+$/.test(x.tag_name)).sort((a, b) => cmpVer(b.tag_name, a.tag_name))[0];
+  if (!rel) return { current: app.getVersion(), latest: null };
+  const asset = (rel.assets || []).find(a => /\.zip$/i.test(a.name));
+  return { current: app.getVersion(), latest: rel.tag_name.replace(/^v/i, ''), newer: cmpVer(rel.tag_name, app.getVersion()) > 0, notes: rel.body || '', date: rel.published_at,
+    asset: asset ? { id: asset.id, name: asset.name, size: asset.size, url: asset.browser_download_url } : null, page: rel.html_url };
+}));
+function extractZip(zipBuf, dest) {
+  const z = unzipEntries(zipBuf);
+  for (const name of Object.keys(z)) {
+    if (name.includes('..') || path.isAbsolute(name)) continue;
+    const target = path.join(dest, name);
+    if (name.endsWith('/')) { fs.mkdirSync(target, { recursive: true }); continue; }
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, z[name]());
+  }
+}
+function writable(dir) { const t = path.join(dir, '.write-test-' + process.pid); try { fs.writeFileSync(t, 'x'); fs.unlinkSync(t); return true; } catch { return false; } }
+ipcMain.handle('update:install', ok(async (_e, info) => {
+  if (!info || !info.asset) throw new Error('لا يوجد ملف تحديث في هذا الإصدار.');
+  const url = getToken() ? `${GH_API}/repos/${repoOf()}/releases/assets/${info.asset.id}` : info.asset.url;
+  const r = await net.fetch(url, { headers: ghHeaders('application/octet-stream') });
+  if (!r.ok) throw new Error('فشل تنزيل التحديث: ' + r.status);
+  const total = +r.headers.get('content-length') || info.asset.size || 0; const reader = r.body.getReader(); const chunks = []; let got = 0, lastSent = 0;
+  for (;;) { const { done, value } = await reader.read(); if (done) break; chunks.push(Buffer.from(value)); got += value.length;
+    if (got - lastSent > 1 << 20) { lastSent = got; win?.webContents.send('update:progress', { got, total }); } }
+  win?.webContents.send('update:progress', { got, total, extracting: true });
+  const tmp = path.join(app.getPath('temp'), 'bank-facilities-update-' + Date.now());
+  const ext = path.join(tmp, 'x'); fs.mkdirSync(ext, { recursive: true });
+  extractZip(Buffer.concat(chunks), ext);
+  const exeName = path.basename(process.execPath);
+  let src = ext; const sub = fs.readdirSync(ext).find(n => fs.existsSync(path.join(ext, n, 'resources', 'app', 'main.js')));
+  if (sub) src = path.join(ext, sub);
+  if (!fs.existsSync(path.join(src, 'resources', 'app', 'main.js'))) throw new Error('ملف التحديث لا يحتوي نسخة صالحة من البرنامج.');
+  const srcExe = fs.readdirSync(src).find(n => /\.exe$/i.test(n)) || exeName;
+  const dst = path.dirname(process.execPath);
+  if (process.platform !== 'win32' || !app.isPackaged) return { restart: false, staged: src };
+  if (srcExe !== exeName) fs.renameSync(path.join(src, srcExe), path.join(src, exeName));
+  const q = s => "'" + String(s).replace(/'/g, "''") + "'";
+  const ps = `$ErrorActionPreference='Stop'
+$p=${process.pid}
+while(Get-Process -Id $p -ErrorAction SilentlyContinue){Start-Sleep -Milliseconds 400}
+Start-Sleep -Milliseconds 600
+$ok=$false
+for($i=0;$i -lt 20 -and -not $ok;$i++){try{Copy-Item -Path (Join-Path ${q(src)} '*') -Destination ${q(dst)} -Recurse -Force;$ok=$true}catch{Start-Sleep -Milliseconds 700}}
+Start-Process -FilePath 'explorer.exe' -ArgumentList ('"'+(Join-Path ${q(dst)} ${q(exeName)})+'"')
+Start-Sleep -Seconds 2
+Remove-Item -Recurse -Force ${q(tmp)} -ErrorAction SilentlyContinue`;
+  const enc = Buffer.from(ps, 'utf16le').toString('base64');
+  const { spawn } = require('child_process');
+  if (writable(dst)) {
+    spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-EncodedCommand', enc], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+  } else {
+    // مجلد البرنامج يحتاج صلاحية مسؤول (مثل Program Files): يظهر طلب موافقة ويندوز مرة واحدة
+    const outer = `Start-Process -FilePath 'powershell.exe' -Verb RunAs -WindowStyle Hidden -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-EncodedCommand','${enc}'`;
+    spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-EncodedCommand', Buffer.from(outer, 'utf16le').toString('base64')], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+  }
+  setTimeout(() => app.quit(), 1500);
+  return { restart: true, admin: !writable(dst) };
+}));
 
 ipcMain.handle('app:notify', ok((_e, title, body) => {
   if (!Notification.isSupported()) return false;

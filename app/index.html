@@ -106,6 +106,14 @@ textarea{min-height:100px;direction:ltr;text-align:left;font-family:Consolas,mon
 .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 18px;border-radius:6px;font-size:13.5px;z-index:20}
 .muted{color:var(--muted)}
 #printHead,#printArea{display:none}
+.upd{margin-top:auto;padding:10px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--muted)}
+.upd .btn{position:relative}
+.dot{position:absolute;top:-4px;left:-4px;width:10px;height:10px;border-radius:50%;background:var(--danger)}
+aside .foot{margin-top:6px}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:30}
+.modal .box{background:var(--surface);border-radius:10px;padding:20px;width:min(520px,92vw);max-height:85vh;overflow:auto;display:flex;flex-direction:column;gap:12px;box-shadow:0 10px 40px rgba(0,0,0,.25)}
+.notes{white-space:pre-wrap;background:var(--sunk);border-radius:6px;padding:10px;font-size:13px;max-height:220px;overflow:auto}
+.prog{height:10px;background:var(--sunk);border-radius:5px;overflow:hidden}.prog i{display:block;height:100%;background:var(--accent);width:0}
 .backbtn{margin:0 6px 10px;justify-content:center!important;border:1px solid var(--line)!important;font-size:13px}
 .backbtn:disabled{opacity:.4;cursor:not-allowed}
 tr.bank-h td{background:var(--accent-soft);font-weight:600;color:var(--accent)}
@@ -164,11 +172,13 @@ details summary{cursor:pointer;color:var(--accent);font-size:13px}
       <button data-v="banks">البنوك والشروط</button>
       <button data-v="settings">الإعدادات</button>
     </nav>
+    <div class="upd" id="updBox"><span id="verTxt"></span><button class="btn sm" id="updBtn">فحص التحديثات<span class="dot" id="updDot" hidden></span></button></div>
     <div class="foot" id="foot"></div>
   </aside>
   <main id="view"><section class="panel"><div class="empty">جاري تحميل البيانات…</div></section></main>
 </div>
 <div class="toast" id="toast" hidden></div>
+<div class="modal" id="modal" hidden><div class="box" role="dialog" aria-modal="true"><div id="modalBody"></div></div></div>
 
 <script>
 /* ======================= state & helpers ======================= */
@@ -303,9 +313,8 @@ function refresh(){
   if(S.view==='settings'){S.setEdit=null}
   render();
 }
-async function exportCSV(name,rows){
-  const csv='﻿'+rows.map(r=>r.map(c=>{const s=String(c??'');return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}).join(',')).join('\r\n');
-  try{if(await window.api.saveFile(name,csv))toast('تم حفظ الملف')}catch(e){toast('تعذّر حفظ الملف: '+e.message)}
+async function exportXlsx(name,sheets){
+  try{if(await window.api.saveXlsx(name,sheets))toast('تم حفظ ملف Excel')}catch(e){toast('تعذّر حفظ الملف: '+e.message)}
 }
 
 /* ======================= dashboard ======================= */
@@ -392,7 +401,7 @@ function vDue(){
     return `<tr><td class="n">${fmtD(x.l.due)}</td><td><span class="pill ${c}">${txt}</span>${lineState(x.l)==='partial'?' <span class="pill p-acc">مسدد جزئي</span>':''}</td><td>${esc(x.loan.bank)}</td><td>${esc(x.loan.name)}${n}</td><td>${esc(x.loan.facility)}</td>
     <td class="n">${fmt(remP(x.l))}</td><td class="n">${fmt(remF(x.l))}</td><td class="n"><b>${fmt(remP(x.l)+remF(x.l))}</b></td><td><button class="btn sm" data-pay="${x.loan.id}" data-line="${x.i}">سداد</button></td></tr>`}).join('');
   $('#view').innerHTML=`<section class="panel">
-   <div class="ph"><h2>الاستحقاقات والتنبيهات</h2><span class="row"><button class="btn sm" id="dueExport">تصدير Excel (CSV)</button><span class="row noprint" style="gap:6px"><button class="btn sm" data-print="pdf" data-what="due">PDF</button><button class="btn sm" data-print="print" data-what="due">طباعة</button></span></span></div>
+   <div class="ph"><h2>الاستحقاقات والتنبيهات</h2><span class="row"><button class="btn sm" id="dueExport">تصدير Excel</button><span class="row noprint" style="gap:6px"><button class="btn sm" data-print="pdf" data-what="due">PDF</button><button class="btn sm" data-print="print" data-what="due">طباعة</button></span></span></div>
    <div class="row">
      <div class="seg"><label><input type="radio" name="dm" value="period" ${S.dueMode==='period'?'checked':''}>خلال فترة</label><label><input type="radio" name="dm" value="month" ${S.dueMode==='month'?'checked':''}>شهر محدد</label><label><input type="radio" name="dm" value="overdue" ${S.dueMode==='overdue'?'checked':''}>المتأخر فقط</label></div>
      ${S.dueMode==='period'?`<label class="row" style="gap:6px">خلال <input id="dueDays" type="number" min="1" max="730" value="${S.dueDays}" style="width:80px"> يوم (يشمل المتأخر)</label>`:''}
@@ -414,7 +423,9 @@ document.addEventListener('change',e=>{
 document.addEventListener('click',e=>{
   const b=e.target.closest('[data-pay]');if(b){S.pm={loan:b.dataset.pay,line:+b.dataset.line};setView('pay');return}
   if(e.target.id==='dueExport'){const h=['تاريخ الاستحقاق','البنك','البيان','التسهيل','أصل القرض','الربح','الإجمالي','الحالة'];
-    exportCSV('استحقاقات-'+todayStr()+'.csv',[h,...S.dueList.map(x=>[x.l.due,x.loan.bank,x.loan.name,x.loan.facility,r2(remP(x.l)),r2(remF(x.l)),r2(remP(x.l)+remF(x.l)),urgency(x.l.due)[1]])])}
+    const rows=[h,...S.dueList.map(x=>[x.l.due,x.loan.bank,x.loan.name,x.loan.facility,r2(remP(x.l)),r2(remF(x.l)),r2(remP(x.l)+remF(x.l)),urgency(x.l.due)[1]])];
+    const L=S.dueList;rows.push(['الإجمالي','','','',r2(L.reduce((a,x)=>a+remP(x.l),0)),r2(L.reduce((a,x)=>a+remF(x.l),0)),r2(L.reduce((a,x)=>a+remP(x.l)+remF(x.l),0)),L.length+' استحقاق']);
+    exportXlsx('استحقاقات-'+todayStr()+'.xlsx',[{name:'الاستحقاقات',rows,totalRows:[rows.length-1]}])}
 });
 
 /* ======================= new loan ======================= */
@@ -704,7 +715,7 @@ function vLoans(){
       ${cfl.map(c=>`<td>${esc(l.custom?.[c.id]??'')}</td>`).join('')}
       <td>${act?(nx&&nx.due<todayStr()?'<span class="pill p-bad">متأخر</span>':'<span class="pill p-warn">قائم</span>'):'<span class="pill p-ok">مسدد</span>'}</td></tr>
       ${open?`<tr><td colspan="${cols}">${loanDetail(l)}</td></tr>`:''}`}).join('');
-  $('#view').innerHTML=`<section class="panel"><div class="ph"><h2>سجل القروض</h2><span class="row"><button class="btn sm" id="lnExport">تصدير كل الأقساط Excel (CSV)</button><span class="row noprint" style="gap:6px"><button class="btn sm" data-print="pdf" data-what="loans">PDF</button><button class="btn sm" data-print="print" data-what="loans">طباعة</button></span></span></div>
+  $('#view').innerHTML=`<section class="panel"><div class="ph"><h2>سجل القروض</h2><span class="row"><button class="btn sm" id="lnExport">تصدير كل الأقساط Excel</button><span class="row noprint" style="gap:6px"><button class="btn sm" data-print="pdf" data-what="loans">PDF</button><button class="btn sm" data-print="print" data-what="loans">طباعة</button></span></span></div>
    <div class="row">
     <input id="lf-q" placeholder="بحث بالبيان أو المرجع" value="${esc(f.q)}" style="width:220px">
     <select id="lf-bank" style="width:140px"><option value="">كل البنوك</option>${banks.map(b=>`<option ${b===f.bank?'selected':''}>${esc(b)}</option>`).join('')}</select>
@@ -736,7 +747,7 @@ document.addEventListener('click',async e=>{
   if(S.view!=='loans')return;
   if(e.target.id==='lnExport'){const cfs=S.settings.customFields||[];const rows=[['البنك','البيان','الأجل','التسهيل','المرجع','تاريخ البداية','تاريخ الاستحقاق','الأصل','الربح','الإجمالي','المسدد','الحالة','المستخدم حتى تاريخه',...cfs.map(c=>c.name)]];
     S.loans.forEach(l=>l.lines.forEach(x=>rows.push([l.bank,l.name,l.behavior==='long'?'قروض طويلة':'قروض قصيرة',l.facility,l.ref||'',l.start||'',x.due,x.principal,x.profit,r2(x.principal+x.profit),r2((x.paidPrincipal||0)+(x.paidProfit||0)),{paid:'مسدد',partial:'مسدد جزئي',open:'غير مسدد'}[lineState(x)],remP(x),...cfs.map(c=>l.custom?.[c.id]??'')])));
-    exportCSV('جدول-استحقاق-القروض-'+todayStr()+'.csv',rows);return}
+    exportXlsx('جدول-استحقاق-القروض-'+todayStr()+'.xlsx',[{name:'جدول استحقاق القروض',rows}]);return}
   const del=e.target.closest('[data-del]');
   if(del){const id=del.dataset.del;$('#del-'+id).innerHTML=`<span class="msg bad" style="padding:5px 10px">حذف القرض وكل أقساطه وحركاته نهائياً؟</span><button class="btn sm dng" data-delok="${id}">نعم، احذف</button><button class="btn sm" data-delno>إلغاء</button>`;return}
   if(e.target.closest('[data-delno]')){vLoans();return}
@@ -951,7 +962,7 @@ function vSettings(){
   <section class="panel" id="impPanel"><div class="ph"><h2>استيراد من Excel</h2><div class="row"><button class="btn" id="tplSave">حفظ نموذج الاستيراد الفارغ</button><button class="btn pri" id="xlImport">استيراد من ملف Excel</button></div></div>
     <p class="note">املأ النموذج (ورقة «البنوك والحدود» وورقة «القروض» بصف لكل قسط) ثم استورده. تظهر معاينة بالأعداد والأخطاء قبل الحفظ.</p>
     <div id="impBody">${S.imp?impPreview():''}</div>
-  </section>`;
+  </section>`+updPanel();
 }
 const LIST_NEW={currencies:()=>({code:'EUR',name:'يورو',rate:4.1,base:false}),benchmarks:()=>({id:rid('bm'),name:'مؤشر جديد',history:[]}),holidays:()=>({date:todayStr(),name:''}),
   facilityTypes:()=>({id:rid('t'),name:'نوع جديد',behavior:'short'}),paymentMethods:()=>'طريقة جديدة',customFields:()=>({id:rid('cf'),name:'حقل جديد',type:'text',options:[],appliesTo:'all',required:false,showInList:false})};
@@ -1104,7 +1115,7 @@ function vReport(){
   const summary=groups.map(g=>`<tr><td>${esc(g.bank)}</td><td class="n">${g.s.n}</td><td class="n">${g.limit?fmt(g.limit):'—'}</td><td class="n">${fmt(g.s.tp)}</td><td class="n">${fmt(g.s.paid)}</td><td class="n"><b>${fmt(g.s.out)}</b></td><td class="n">${fmt(g.s.rf)}</td><td class="n">${fmt(g.s.rem)}</td><td class="n" style="color:${g.s.over?'var(--danger)':'inherit'}">${fmt(g.s.over)}</td><td class="n">${g.limit?fmt(g.avail):'—'}</td></tr>`).join('');
   const detail=groups.map(g=>`<tr class="bank-h"><td colspan="13">${esc(g.bank)} — ${g.s.n} قرض</td></tr>`+g.rows.map(r=>`<tr class="click" data-rl="${r.l.id}"><td>${esc(r.l.name)}</td><td>${esc(r.l.facility)}</td><td class="n">${fmtD(r.l.start)}</td><td class="n">${fmtD(r.last)}</td><td class="n">${fmt(r.tp)}</td><td class="n">${fmt(r.tf)}</td><td class="n">${fmt(r.tot)}</td><td class="n">${fmt(r.paid)}</td><td class="n"><b>${fmt(r.out)}</b></td><td class="n">${fmt(r.rem)}</td><td class="n">${r.nx?fmtD(r.nx.due):'—'}</td><td class="n">${r.pc}/${r.cnt}</td><td>${st(r)}</td></tr>`).join('')
     +`<tr class="sub"><td colspan="4">إجمالي ${esc(g.bank)}</td><td class="n">${fmt(g.s.tp)}</td><td class="n">${fmt(g.s.tf)}</td><td class="n">${fmt(g.s.tot)}</td><td class="n">${fmt(g.s.paid)}</td><td class="n">${fmt(g.s.out)}</td><td class="n">${fmt(g.s.rem)}</td><td colspan="3"></td></tr>`).join('');
-  $('#view').innerHTML=`<section class="panel"><div class="ph"><h2>تقرير القروض بالبنك</h2><span class="row"><button class="btn sm" id="repExport">تصدير Excel (CSV)</button>`+PB('report')+`</span></div>
+  $('#view').innerHTML=`<section class="panel"><div class="ph"><h2>تقرير القروض بالبنك</h2><span class="row"><button class="btn sm" id="repExport">تصدير Excel</button>`+PB('report')+`</span></div>
    <div class="row noprint">
     <select id="rf-bank" style="width:150px"><option value="">كل البنوك</option>${banks.map(b=>`<option ${b===f.bank?'selected':''}>${esc(b)}</option>`).join('')}</select>
     <select id="rf-status" style="width:150px"><option value="active" ${f.status==='active'?'selected':''}>القروض القائمة</option><option value="paid" ${f.status==='paid'?'selected':''}>القروض المسددة</option><option value="all" ${f.status==='all'?'selected':''}>كل القروض</option></select>
@@ -1124,8 +1135,12 @@ document.addEventListener('click',e=>{
   if(S.view!=='report')return;
   const tr=e.target.closest('tr[data-rl]');if(tr){S.openLoan=tr.dataset.rl;S.lf={bank:'',status:'all',term:'',q:''};setView('loans');setTimeout(()=>document.querySelector('.open-row')?.scrollIntoView({block:'center'}),50);return}
   if(e.target.id==='repExport'){const {groups}=reportData();const rows=[['البنك','البيان','التسهيل','الأجل','المرجع','تاريخ البداية','الاستحقاق النهائي','أصل القرض','الربح','الإجمالي','المسدد من الأصل','المسدد (أصل + ربح)','المستخدم حتى تاريخه','الربح المتبقي','المتبقي مع الربح','متأخر','القسط القادم','الأقساط المسددة','عدد الأقساط','الحالة']];
-    groups.forEach(g=>g.rows.forEach(r=>rows.push([g.bank,r.l.name,r.l.facility,r.l.behavior==='long'?'طويل':'قصير',r.l.ref||'',r.l.start||'',r.last,r2(r.tp),r2(r.tf),r2(r.tot),r2(r.paidP),r2(r.paid),r2(r.out),r2(r.rf),r2(r.rem),r2(r.over),r.nx?.due||'',r.pc,r.cnt,r.status])));
-    exportCSV('تقرير-القروض-بالبنك-'+todayStr()+'.csv',rows)}
+    const tr=[],sumr=(lbl,s)=>[lbl,'','','','','','',r2(s.tp),r2(s.tf),r2(s.tot),r2(s.paidP),r2(s.paid),r2(s.out),r2(s.rf),r2(s.rem),r2(s.over),'','','',s.n+' قرض'];
+    groups.forEach(g=>{g.rows.forEach(r=>rows.push([g.bank,r.l.name,r.l.facility,r.l.behavior==='long'?'طويل':'قصير',r.l.ref||'',r.l.start||'',r.last,r2(r.tp),r2(r.tf),r2(r.tot),r2(r.paidP),r2(r.paid),r2(r.out),r2(r.rf),r2(r.rem),r2(r.over),r.nx?.due||'',r.pc,r.cnt,r.status]));rows.push(sumr('إجمالي '+g.bank,g.s));tr.push(rows.length-1)});
+    const T=reportData().total;rows.push(sumr('الإجمالي العام',T));tr.push(rows.length-1);
+    const sm=[['البنك','عدد القروض','الحدود','أصل القروض','المسدد (أصل + ربح)','المستخدم حتى تاريخه','الربح المتبقي','المتبقي مع الربح','متأخر','المتاح من الحدود'],...groups.map(g=>[g.bank,g.s.n,r2(g.limit),r2(g.s.tp),r2(g.s.paid),r2(g.s.out),r2(g.s.rf),r2(g.s.rem),r2(g.s.over),r2(g.avail)])];
+    sm.push(['الإجمالي',T.n,r2(groups.reduce((a,g)=>a+g.limit,0)),r2(T.tp),r2(T.paid),r2(T.out),r2(T.rf),r2(T.rem),r2(T.over),r2(groups.reduce((a,g)=>a+g.avail,0))]);
+    exportXlsx('تقرير-القروض-بالبنك-'+todayStr()+'.xlsx',[{name:'ملخص البنوك',rows:sm,totalRows:[sm.length-1],intCols:[1]},{name:'تفاصيل القروض',rows,totalRows:tr,intCols:[17,18]}])}
 });
 
 /* ======================= print / PDF ======================= */
@@ -1151,10 +1166,50 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-print]');i
 /* أرقام إنجليزية في حقول الأرقام والتواريخ */
 new MutationObserver(()=>document.querySelectorAll('input[type=number]:not([lang]),input[type=date]:not([lang]),input[type=month]:not([lang])').forEach(i=>i.lang='en')).observe(document.body,{childList:true,subtree:true});
 
+
+/* ======================= updates ======================= */
+function modal(html){$('#modalBody').innerHTML=html;$('#modal').hidden=!html}
+document.addEventListener('click',e=>{if(e.target.id==='modal'||e.target.closest('[data-close]'))modal('')});
+async function checkUpdates(silent){
+  if(!silent)modal('<h2>فحص التحديثات</h2><p class="note">جاري الاتصال بـ GitHub…</p>');
+  let r;try{r=await window.api.updateCheck()}catch(e){if(!silent)modal(`<h2>فحص التحديثات</h2><div class="msg bad">${esc(e.message)}</div><div class="row"><button class="btn" data-close>إغلاق</button><button class="btn" id="updGoSet">إعدادات التحديث</button></div>`);return}
+  S.updInfo=r;$('#updDot').hidden=!r.newer;
+  if(silent){if(r.newer)toast('يتوفر إصدار جديد '+r.latest+' — اضغط «فحص التحديثات»');return}
+  if(!r.latest){modal(`<h2>فحص التحديثات</h2><p>لا توجد إصدارات منشورة بعد.</p><div class="row"><button class="btn" data-close>إغلاق</button></div>`);return}
+  if(!r.newer){modal(`<h2>فحص التحديثات</h2><div class="msg ok">أنت تستخدم أحدث نسخة (${esc(r.current)}).</div><div class="row"><button class="btn" data-close>إغلاق</button></div>`);return}
+  modal(`<h2>يتوفر إصدار جديد ${esc(r.latest)}</h2><p class="note">نسختك الحالية ${esc(r.current)}${r.date?' · تاريخ النشر '+fmtD(r.date.slice(0,10)):''}${r.asset?' · حجم التنزيل '+fmt(r.asset.size/1048576,0)+' MB':''}</p>
+    ${r.notes?`<div class="notes">${esc(r.notes)}</div>`:''}
+    <p class="note">بياناتك لا تتأثر بالتحديث. سيُغلق البرنامج ويفتح النسخة الجديدة تلقائياً.</p>
+    <div id="updProg" hidden><div class="prog"><i id="updBar"></i></div><p class="note" id="updTxt"></p></div><div id="updMsg"></div>
+    <div class="row"><button class="btn pri" id="updInstall" ${r.asset?'':'disabled'}>تنزيل وتثبيت</button><button class="btn" data-close>لاحقاً</button></div>`);
+}
+window.api.onUpdateProgress(p=>{const b=$('#updBar');if(!b)return;$('#updProg').hidden=false;const pc=p.total?Math.min(100,p.got/p.total*100):0;b.style.width=(p.extracting?100:pc)+'%';$('#updTxt').textContent=p.extracting?'جاري تجهيز الملفات…':`تم تنزيل ${fmt(p.got/1048576,1)} من ${fmt(p.total/1048576,1)} MB`});
+document.addEventListener('click',async e=>{
+  if(e.target.id==="updBtn2"||e.target.closest("#updBtn")){checkUpdates(false);return}
+  if(e.target.id==='updGoSet'){modal('');setView('settings');setTimeout(()=>$('#updPanel')?.scrollIntoView({block:'start'}),50);return}
+  if(e.target.id==='updInstall'&&S.updInfo){const btn=e.target;btn.disabled=true;$('#updProg').hidden=false;$('#updTxt').textContent='جاري التنزيل…';
+    try{const r=await window.api.updateInstall(S.updInfo);
+      if(r.restart)$('#updMsg').innerHTML=`<div class="msg ok">تم التنزيل. سيُغلق البرنامج الآن ويفتح النسخة الجديدة${r.admin?'. سيطلب ويندوز موافقة لأن البرنامج مثبت في مجلد محمي (مثل Program Files)؛ اضغط «نعم»':''}.</div>`;
+      else $('#updMsg').innerHTML=`<div class="msg warn">تم تجهيز النسخة في: ${esc(r.staged)}. التثبيت التلقائي يعمل في نسخة ويندوز فقط.</div>`;
+    }catch(er){btn.disabled=false;$('#updMsg').innerHTML=`<div class="msg bad">${esc(er.message)}</div>`}}
+  if(e.target.id==='updSave'){try{const c={repo:$('#upd-repo').value,auto:$('#upd-auto').checked};const t=$('#upd-token').value;if(t||$('#upd-clear')?.checked)c.token=$('#upd-clear')?.checked?'':t;
+    await window.api.updateSetCfg(c);S.updCfg=await window.api.updateGetCfg();toast('تم حفظ إعدادات التحديث');vSettings()}catch(er){toast(er.message)}}
+});
+function updPanel(){const c=S.updCfg||{};return `<section class="panel" id="updPanel"><div class="ph"><h2>التحديثات</h2><span class="muted">الإصدار الحالي ${esc(c.version||'')}</span></div>
+  <p class="note">البرنامج يقرأ آخر إصدار منشور في صفحة Releases على GitHub. إذا كان المستودع <b>خاصاً</b> أضف رمز وصول (Fine-grained token) بصلاحية <b>Contents: Read-only</b> على هذا المستودع فقط. الرمز يُحفظ على هذا الجهاز فقط ولا يُكتب في ملف البيانات المشترك.</p>
+  <fieldset><legend>إعدادات التحديث (لهذا الجهاز)</legend>
+   <label class="f">المستودع (owner/repo)<input id="upd-repo" class="ltr" value="${esc(c.repo||'')}"></label>
+   <label class="f">رمز وصول GitHub<input id="upd-token" class="ltr" type="password" placeholder="${c.hasToken?'محفوظ — اتركه فارغاً للإبقاء عليه':'github_pat_…'}"></label>
+   ${c.hasToken?'<div class="f"><span>&nbsp;</span><label class="chk"><input type="checkbox" id="upd-clear">حذف الرمز المحفوظ</label></div>':''}
+   <div class="f"><span>&nbsp;</span><label class="chk"><input type="checkbox" id="upd-auto" ${c.auto!==false?'checked':''}>فحص التحديثات تلقائياً عند فتح البرنامج</label></div>
+  </fieldset>
+  <div class="row"><button class="btn pri" id="updSave">حفظ إعدادات التحديث</button><button class="btn" id="updBtn2">فحص الآن</button></div></section>`}
+
 /* ======================= boot ======================= */
 (async()=>{
   try{
     const r=await window.api.load();S.user=r.user;S.dataDir=r.dataDir;S.loginItem=r.loginItem;applyData(r.data);render();
+    try{S.updCfg=await window.api.updateGetCfg();$('#verTxt').textContent='الإصدار '+S.updCfg.version;if(S.updCfg.auto!==false)setTimeout(()=>checkUpdates(true),4000)}catch{}
     window.api.onChanged(d=>{applyData(d);refresh();toast('تم تحديث البيانات من جهاز آخر')});
     if(S.settings.notifyOnStart&&!S.notified){S.notified=true;const t=todayStr(),o=dueLines(l=>l.due<t),u=dueLines(l=>l.due>=t&&days(t,l.due)<=S.settings.urgentDays),rn=renewalAlerts().filter(x=>x.d<=0);
       const parts=[];if(o.length)parts.push(o.length+' استحقاق متأخر');if(u.length)parts.push(u.length+' استحقاق خلال '+S.settings.urgentDays+' أيام');if(rn.length)parts.push(rn.length+' اتفاقية منتهية');
