@@ -203,6 +203,21 @@ ipcMain.handle('xlsx:template', ok(async () => {
   fs.copyFileSync(path.join(__dirname, 'template.xlsx'), r.filePath); shell.showItemInFolder(r.filePath); return true;
 }));
 
+ipcMain.handle('print:pdf', ok(async (_e, name, landscape) => {
+  const r = await dialog.showSaveDialog(win, { defaultPath: path.join(app.getPath('documents'), name), filters: [{ name: 'PDF', extensions: ['pdf'] }] });
+  if (r.canceled || !r.filePath) return false;
+  const buf = await win.webContents.printToPDF({
+    pageSize: 'A4', landscape: !!landscape, printBackground: true,
+    margins: { top: 0.4, bottom: 0.5, left: 0.4, right: 0.4 },
+    displayHeaderFooter: true, headerTemplate: '<div></div>',
+    footerTemplate: '<div style="font-size:8px;width:100%;text-align:center;font-family:Tahoma;color:#555"><span class="pageNumber"></span> / <span class="totalPages"></span></div>',
+  });
+  fs.writeFileSync(r.filePath, buf); shell.openPath(r.filePath); return true;
+}));
+ipcMain.handle('print:direct', ok((_e, landscape) => new Promise((res, rej) => {
+  win.webContents.print({ printBackground: true, landscape: !!landscape }, (done, why) => (done || /cancel/i.test(why || '')) ? res(done) : rej(new Error(why)));
+})));
+
 ipcMain.handle('app:notify', ok((_e, title, body) => {
   if (!Notification.isSupported()) return false;
   const n = new Notification({ title, body }); n.on('click', () => { win?.show(); win?.focus(); }); n.show(); return true;

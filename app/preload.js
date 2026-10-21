@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('api', {
   setLoginItem: (on) => call('app:loginItem', on),
   importXlsx: () => call('xlsx:import'),
   saveTemplate: () => call('xlsx:template'),
+  printPDF: (name, landscape) => call('print:pdf', name, landscape),
+  print: (landscape) => call('print:direct', landscape),
   notify: (title, body) => call('app:notify', title, body),
   onChanged: (fn) => ipcRenderer.on('data:changed', (_e, d) => fn(d)),
 });

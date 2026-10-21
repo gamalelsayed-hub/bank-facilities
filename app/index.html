@@ -105,6 +105,32 @@ textarea{min-height:100px;direction:ltr;text-align:left;font-family:Consolas,mon
 .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-inline-end:5px;vertical-align:middle}
 .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 18px;border-radius:6px;font-size:13.5px;z-index:20}
 .muted{color:var(--muted)}
+#printHead,#printArea{display:none}
+.backbtn{margin:0 6px 10px;justify-content:center!important;border:1px solid var(--line)!important;font-size:13px}
+.backbtn:disabled{opacity:.4;cursor:not-allowed}
+tr.bank-h td{background:var(--accent-soft);font-weight:600;color:var(--accent)}
+tr.sub td{font-weight:600;border-top:2px solid var(--line)}
+@media print{
+  :root{--bg:#fff;--surface:#fff;--sunk:#EEF2F1;--ink:#111;--muted:#444;--line:#C9D3D0;--accent:#0E6B5B;--accent-soft:#E3F1ED;--danger:#B42318;--danger-soft:#FDECEA;--warn:#8A4B00;--warn-soft:#FDF1DC;--ok:#16754A;--ok-soft:#E3F4EA;--bar-p:#0E6B5B;--bar-f:#8CC3B6;color-scheme:light}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body{background:#fff;font-size:11px}
+  aside,.btn,.toast,.stickybar,.noprint,input[type=radio],.seg{display:none!important}
+  .app{display:block;min-height:0} main{padding:0;gap:10px}
+  section.panel{border:0;padding:0;gap:8px}
+  .tw{overflow:visible;border:1px solid var(--line)}
+  table{font-size:8.5px;width:100%;table-layout:auto} td,th{padding:3px 4px} th{white-space:normal} td{word-break:break-word}
+  .ph:has(.noprint) h2{display:none}
+  .pill{padding:0 4px;font-size:8px}
+  tr{break-inside:avoid} thead{display:table-header-group}
+  .grid2{display:block} .grid2>section{margin-bottom:10px}
+  .kpis{grid-template-columns:repeat(6,1fr)} .kpi b{font-size:14px}
+  .alert button{display:none}
+  .row input,.row select{border:0;background:none;padding:0;width:auto;appearance:none}
+  #printHead{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid var(--accent);padding-bottom:6px;margin-bottom:10px}
+  #printHead h1{font-size:17px;margin:2px 0} #printHead .ph-sub{color:var(--muted)}
+  body.pa main{display:none} body.pa #printArea{display:block}
+  #printArea .detail{padding:0}
+}
 .bankbar{display:flex;gap:8px;flex-wrap:wrap}
 .bankcard{border:1px solid var(--line);border-radius:8px;padding:10px 14px;background:var(--surface);cursor:pointer;min-width:170px;text-align:right;font:inherit;color:var(--ink);display:flex;flex-direction:column;gap:2px}
 .bankcard[aria-current="true"]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
@@ -122,15 +148,18 @@ details summary{cursor:pointer;color:var(--accent);font-size:13px}
 </style>
 </head>
 <body>
+<div id="printHead"></div><div id="printArea"></div>
 <div class="app">
   <aside>
     <div class="brand"><h1>إدارة التسهيلات</h1><small id="company"></small><small id="today"></small></div>
+    <button class="backbtn" id="backBtn" disabled title="رجوع للشاشة السابقة (Alt + ←)">→ رجوع</button>
     <nav id="nav" style="display:flex;flex-direction:column;gap:2px">
       <button data-v="dash" aria-current="true">لوحة المتابعة</button>
       <button data-v="due">الاستحقاقات والتنبيهات<span class="cnt" id="dueCnt" hidden></span></button>
       <button data-v="new">قرض / تمويل جديد</button>
       <button data-v="pay">تسجيل سداد</button>
       <button data-v="loans">سجل القروض</button>
+      <button data-v="report">تقرير القروض بالبنك</button>
       <div class="sep"></div>
       <button data-v="banks">البنوك والشروط</button>
       <button data-v="settings">الإعدادات</button>
@@ -237,17 +266,33 @@ function urgency(due){const d=days(todayStr(),due);if(d<0)return['p-bad','متأ
 function renewalAlerts(){const t=todayStr();return S.banks.filter(b=>b.active!==false&&b.renewalDate).map(b=>({b,d:days(t,b.renewalDate)})).filter(x=>x.d<=S.settings.renewalAlertDays).sort((a,b)=>a.d-b.d)}
 
 /* ======================= shell ======================= */
-function setView(v){
-  if(S.view==='banks'&&S.bankDirty&&v!=='banks'&&!setView.force){toast('لديك تعديلات غير محفوظة على البنك. احفظها أو اضغط «تجاهل التعديلات».');return}
-  if(S.view==='settings'&&S.setDirty&&v!=='settings'&&!setView.force){toast('لديك إعدادات غير محفوظة. احفظها أو اضغط «تجاهل التعديلات».');return}
+const snap=()=>({view:S.view,openLoan:S.openLoan,lf:clone(S.lf),rf:clone(S.rf),dueMode:S.dueMode,dueDays:S.dueDays,dueMonth:S.dueMonth,dueBank:S.dueBank,selBank:S.selBank,y:window.scrollY});
+S.hist=[];
+function canLeave(v){
+  if(S.view==='banks'&&S.bankDirty&&v!=='banks'){toast('لديك تعديلات غير محفوظة على البنك. احفظها أو اضغط «تجاهل التعديلات».');return false}
+  if(S.view==='settings'&&S.setDirty&&v!=='settings'){toast('لديك إعدادات غير محفوظة. احفظها أو اضغط «تجاهل التعديلات».');return false}
+  return true}
+function setView(v,back){
+  if(!canLeave(v))return;
+  if(!back&&S.last&&v!==S.view){S.hist.push(S.last);if(S.hist.length>60)S.hist.shift()}
   S.view=v;document.querySelectorAll('#nav button').forEach(b=>b.setAttribute('aria-current',b.dataset.v===v));render();window.scrollTo(0,0)}
 $('#nav').addEventListener('click',e=>{const b=e.target.closest('button[data-v]');if(b)setView(b.dataset.v)});
 function chrome(){
   $('#today').textContent='اليوم '+fmtD(todayStr());$('#company').textContent=S.settings.companyName||'';
   const t=todayStr(),n=dueLines(l=>days(t,l.due)<=S.settings.urgentDays).length;const c=$('#dueCnt');c.hidden=!n;c.textContent=n;
+  $('#backBtn').disabled=!S.hist.length;
   $('#foot').innerHTML=`المستخدم: ${esc(S.user)}<br>مجلد البيانات:<br>${esc(S.dataDir)}`;
 }
-function render(){chrome();({dash:vDash,due:vDue,new:vNew,pay:vPay,loans:vLoans,banks:vBanks,settings:vSettings})[S.view]()}
+function render(){chrome();({dash:vDash,due:vDue,new:vNew,pay:vPay,loans:vLoans,report:vReport,banks:vBanks,settings:vSettings})[S.view]();S.last=snap()}
+function goBack(){
+  const h=S.hist[S.hist.length-1];if(!h)return;if(!canLeave(h.view))return;S.hist.pop();
+  Object.assign(S,{openLoan:h.openLoan,lf:h.lf,rf:h.rf||S.rf,dueMode:h.dueMode,dueDays:h.dueDays,dueMonth:h.dueMonth,dueBank:h.dueBank,selBank:h.selBank});
+  if(h.view==='banks')S.bankEdit=null;
+  setView(h.view,true);window.scrollTo(0,h.y||0);
+}
+$('#backBtn').addEventListener('click',goBack);
+document.addEventListener('keydown',e=>{if(e.altKey&&(e.key==='ArrowLeft'||e.key==='ArrowRight')){e.preventDefault();goBack()}});
+document.addEventListener('mouseup',e=>{if(e.button===3){e.preventDefault();goBack()}});
 function refresh(){
   chrome();
   if(S.view==='new'&&$('#nlForm')){nlUpdate();return}
@@ -303,6 +348,7 @@ function vDash(){
     <div class="kpi ${soon.length?'warn':''}"><span>مستحق خلال ${st.alertDays} يوم</span><b>${fmt0(sumT(soon))}</b><em>${soon.length} قسط/قرض</em></div>
     <div class="kpi"><span>رصيد القروض الطويلة</span><b>${fmt0(longOut)}</b><em>أصل بدون ربح</em></div>
   </div>
+  <div class="row noprint" style="justify-content:flex-end"><span class="row noprint" style="gap:6px"><button class="btn sm" data-print="pdf" data-what="dash">PDF</button><button class="btn sm" data-print="print" data-what="dash">طباعة</button></span></div>
   <section class="panel"><div class="ph"><h2>التنبيهات</h2><p>فترة التنبيه ${st.alertDays} يوم، العاجل ${st.urgentDays} أيام، تجديد الاتفاقيات ${st.renewalAlertDays} يوم</p></div><div class="alerts">${alerts.join('')}</div></section>
   <section class="panel"><div class="ph"><h2>متابعة حدود التسهيلات</h2><p>المستخدم = أصل العمليات القائمة. السداد يعيد المبلغ للمتاح فوراً.</p></div>
     <div class="tw"><table><thead><tr><th>البنك</th><th>التسهيل</th><th class="n">الحد الائتماني</th><th class="n">المستخدم</th><th class="n">المتاح للسحب</th><th>نسبة الاستخدام</th><th class="n">أقرب استحقاق</th></tr></thead>
@@ -346,7 +392,7 @@ function vDue(){
     return `<tr><td class="n">${fmtD(x.l.due)}</td><td><span class="pill ${c}">${txt}</span>${lineState(x.l)==='partial'?' <span class="pill p-acc">مسدد جزئي</span>':''}</td><td>${esc(x.loan.bank)}</td><td>${esc(x.loan.name)}${n}</td><td>${esc(x.loan.facility)}</td>
     <td class="n">${fmt(remP(x.l))}</td><td class="n">${fmt(remF(x.l))}</td><td class="n"><b>${fmt(remP(x.l)+remF(x.l))}</b></td><td><button class="btn sm" data-pay="${x.loan.id}" data-line="${x.i}">سداد</button></td></tr>`}).join('');
   $('#view').innerHTML=`<section class="panel">
-   <div class="ph"><h2>الاستحقاقات والتنبيهات</h2><button class="btn sm" id="dueExport">تصدير Excel (CSV)</button></div>
+   <div class="ph"><h2>الاستحقاقات والتنبيهات</h2><span class="row"><button class="btn sm" id="dueExport">تصدير Excel (CSV)</button><span class="row noprint" style="gap:6px"><button class="btn sm" data-print="pdf" data-what="due">PDF</button><button class="btn sm" data-print="print" data-what="due">طباعة</button></span></span></div>
    <div class="row">
      <div class="seg"><label><input type="radio" name="dm" value="period" ${S.dueMode==='period'?'checked':''}>خلال فترة</label><label><input type="radio" name="dm" value="month" ${S.dueMode==='month'?'checked':''}>شهر محدد</label><label><input type="radio" name="dm" value="overdue" ${S.dueMode==='overdue'?'checked':''}>المتأخر فقط</label></div>
      ${S.dueMode==='period'?`<label class="row" style="gap:6px">خلال <input id="dueDays" type="number" min="1" max="730" value="${S.dueDays}" style="width:80px"> يوم (يشمل المتأخر)</label>`:''}
@@ -646,6 +692,8 @@ document.addEventListener('submit',async e=>{
 
 /* ======================= loans register ======================= */
 function vLoans(){
+  if(S.last&&S.last.view==='loans'&&S.view==='loans'&&S.last.openLoan!==S.openLoan&&!vLoans.noPush){S.hist.push(S.last);$('#backBtn').disabled=false}
+  setTimeout(()=>{if(S.view==='loans')S.last=snap()},0);
   const f=S.lf,q=f.q.trim(),cfl=(S.settings.customFields||[]).filter(c=>c.showInList);
   const list=S.loans.filter(l=>(!f.bank||l.bank===f.bank)&&(!f.term||(f.term==='long')===(l.behavior==='long'))&&(f.status==='all'||(f.status==='active')===isActive(l))&&(!q||(l.name+' '+(l.ref||'')+' '+(l.master||'')+' '+Object.values(l.custom||{}).join(' ')).includes(q)))
     .sort((a,b)=>(isActive(b)-isActive(a))||((nextLine(a)?.due||a.lines.at(-1)?.due||'')<(nextLine(b)?.due||b.lines.at(-1)?.due||'')?-1:1));
@@ -656,7 +704,7 @@ function vLoans(){
       ${cfl.map(c=>`<td>${esc(l.custom?.[c.id]??'')}</td>`).join('')}
       <td>${act?(nx&&nx.due<todayStr()?'<span class="pill p-bad">متأخر</span>':'<span class="pill p-warn">قائم</span>'):'<span class="pill p-ok">مسدد</span>'}</td></tr>
       ${open?`<tr><td colspan="${cols}">${loanDetail(l)}</td></tr>`:''}`}).join('');
-  $('#view').innerHTML=`<section class="panel"><div class="ph"><h2>سجل القروض</h2><button class="btn sm" id="lnExport">تصدير كل الأقساط Excel (CSV)</button></div>
+  $('#view').innerHTML=`<section class="panel"><div class="ph"><h2>سجل القروض</h2><span class="row"><button class="btn sm" id="lnExport">تصدير كل الأقساط Excel (CSV)</button><span class="row noprint" style="gap:6px"><button class="btn sm" data-print="pdf" data-what="loans">PDF</button><button class="btn sm" data-print="print" data-what="loans">طباعة</button></span></span></div>
    <div class="row">
     <input id="lf-q" placeholder="بحث بالبيان أو المرجع" value="${esc(f.q)}" style="width:220px">
     <select id="lf-bank" style="width:140px"><option value="">كل البنوك</option>${banks.map(b=>`<option ${b===f.bank?'selected':''}>${esc(b)}</option>`).join('')}</select>
@@ -679,7 +727,7 @@ function loanDetail(l){
     <div class="tw"><table><thead><tr><th class="n">#</th><th class="n">الاستحقاق</th><th class="n">الأصل</th><th class="n">الربح</th><th class="n">الإجمالي</th><th class="n">المسدد</th><th>الحالة</th><th></th></tr></thead><tbody>${sched}
       <tr class="tot"><td colspan="2">الإجمالي</td><td class="n">${fmt(totalPrincipal(l))}</td><td class="n">${fmt(l.lines.reduce((a,x)=>a+x.profit,0))}</td><td class="n">${fmt(l.lines.reduce((a,x)=>a+x.principal+x.profit,0))}</td><td class="n">${fmt(l.lines.reduce((a,x)=>a+(x.paidPrincipal||0)+(x.paidProfit||0),0))}</td><td colspan="2"></td></tr></tbody></table></div>
     ${pays?`<h3>حركات السداد المسجلة</h3><div class="tw"><table><thead><tr><th class="n">التاريخ</th><th>النوع</th><th>طريقة الدفع</th><th class="n">أصل</th><th class="n">ربح</th><th>ملاحظة</th><th>سجّلها</th><th></th></tr></thead><tbody>${pays}</tbody></table></div>`:'<p class="note">لا توجد حركات سداد مسجلة من البرنامج (المسدد من الإكسيل مُرحّل كما هو).</p>'}
-    <div class="row" id="del-${l.id}"><button class="btn sm dng" data-del="${l.id}">حذف القرض</button></div>
+    <div class="row" id="del-${l.id}"><button class="btn sm" data-print="pdf" data-what="loan" data-id="${l.id}">كشف القرض PDF</button><button class="btn sm" data-print="print" data-what="loan" data-id="${l.id}">طباعة كشف القرض</button><span style="flex:1"></span><button class="btn sm dng" data-del="${l.id}">حذف القرض</button></div>
   </div>`;
 }
 document.addEventListener('input',e=>{if(e.target.id==='lf-q'){S.lf.q=e.target.value;clearTimeout(S.qt);S.qt=setTimeout(()=>{vLoans();const i=$('#lf-q');i.focus();i.setSelectionRange(i.value.length,i.value.length)},250)}});
@@ -721,6 +769,7 @@ function onEdit(e){
 }
 function markDirty(scope){const b=$(scope==='bank'?'#bk-state':'#st-state');if(b)b.textContent='تعديلات غير محفوظة'}
 document.addEventListener('input',onEdit);document.addEventListener('change',e=>{if(e.target.dataset.rr!=null)onEdit(e)});
+const PB=w=>`<span class="row noprint" style="gap:6px"><button class="btn sm" data-print="pdf" data-what="${w}">PDF</button><button class="btn sm" data-print="print" data-what="${w}">طباعة</button></span>`;
 const I=(p,v,t='text',extra='')=>`<input data-p="${p}" ${t==='num'||t==='int'?`type="number" step="${t==='int'?1:'any'}" data-t="${t}"`:t==='date'?'type="date"':''} value="${esc(v??'')}" ${extra}>`;
 const SEL=(p,v,opts,rr=false,t='')=>`<select data-p="${p}" ${rr?'data-rr':''} ${t?`data-t="${t}"`:''}>${opts.map(([k,l])=>`<option value="${esc(k)}" ${String(v??'')===String(k)?'selected':''}>${esc(l)}</option>`).join('')}</select>`;
 const CHK=(p,v,label,rr=false)=>`<label class="chk"><input type="checkbox" data-p="${p}" ${v?'checked':''} ${rr?'data-rr':''}>${label}</label>`;
@@ -1026,6 +1075,81 @@ document.addEventListener('click',async e=>{
     I.loans.forEach(l=>ops.push({col:'loans',id:rid('L'),doc:l}));
     if(await save(ops,`تم استيراد ${I.banks.length} بنك و${I.loans.length} قرض`)){S.imp=null;render()}}
 });
+
+
+/* ======================= report: loans by bank ======================= */
+S.rf={bank:'',status:'active',term:'',asOf:''};
+function loanRow(l){
+  const tp=totalPrincipal(l),tf=l.lines.reduce((a,x)=>a+x.profit,0),paidP=l.lines.reduce((a,x)=>a+(x.paidPrincipal||0),0),paidF=l.lines.reduce((a,x)=>a+(x.paidProfit||0),0);
+  const out=outstanding(l),rf=remProfit(l),nx=nextLine(l),last=l.lines.reduce((a,x)=>x.due>a?x.due:a,''),t=todayStr();
+  const over=l.lines.filter(x=>lineState(x)!=='paid'&&x.due<t).reduce((a,x)=>a+remP(x)+remF(x),0);
+  const cnt=l.lines.length,pc=l.lines.filter(x=>lineState(x)==='paid').length;
+  return{l,tp,tf,tot:tp+tf,paidP,paidF,paid:paidP+paidF,out,rf,rem:out+rf,nx,last,over,cnt,pc,
+    status:!isActive(l)?'مسدد':over>0?'متأخر':'قائم'};
+}
+function reportData(){
+  const f=S.rf;const L=limitStats();
+  const rows=S.loans.filter(l=>(!f.bank||l.bank===f.bank)&&(!f.term||(f.term==='long')===(l.behavior==='long'))&&(f.status==='all'||(f.status==='active')===isActive(l))).map(loanRow);
+  const banks=[...new Set(rows.map(r=>r.l.bank))].sort((a,b)=>(bankById(S.loans.find(l=>l.bank===a)?.bankId)?.order||99)-(bankById(S.loans.find(l=>l.bank===b)?.bankId)?.order||99));
+  const sum=a=>({n:a.length,tp:a.reduce((s,r)=>s+r.tp,0),tf:a.reduce((s,r)=>s+r.tf,0),tot:a.reduce((s,r)=>s+r.tot,0),paid:a.reduce((s,r)=>s+r.paid,0),paidP:a.reduce((s,r)=>s+r.paidP,0),out:a.reduce((s,r)=>s+r.out,0),rf:a.reduce((s,r)=>s+r.rf,0),rem:a.reduce((s,r)=>s+r.rem,0),over:a.reduce((s,r)=>s+r.over,0)});
+  const groups=banks.map(b=>{const rs=rows.filter(r=>r.l.bank===b).sort((x,y)=>(x.l.facility||'').localeCompare(y.l.facility||'')||((x.nx?.due||x.last)<(y.nx?.due||y.last)?-1:1));
+    const bk=S.banks.find(x=>x.name===b);const fl=(bk?.facilities||[]).filter(x=>!x.noLimit&&!x.parentId&&x.active!==false);
+    return{bank:b,rows:rs,s:sum(rs),limit:fl.reduce((a,x)=>a+(L[x.id]?.limit||0),0),avail:fl.reduce((a,x)=>a+(L[x.id]?.avail||0),0)}});
+  return{groups,total:sum(rows)};
+}
+function reportDesc(){const f=S.rf;return[f.bank||'كل البنوك',{active:'القروض القائمة',paid:'القروض المسددة',all:'كل القروض'}[f.status],f.term==='long'?'طويلة الأجل':f.term==='short'?'قصيرة الأجل':'كل الآجال'].join(' · ')}
+function vReport(){
+  const f=S.rf,{groups,total}=reportData(),banks=[...new Set(S.loans.map(l=>l.bank))];
+  const st=r=>`<span class="pill ${r.status==='مسدد'?'p-ok':r.status==='متأخر'?'p-bad':'p-warn'}">${r.status}</span>`;
+  const summary=groups.map(g=>`<tr><td>${esc(g.bank)}</td><td class="n">${g.s.n}</td><td class="n">${g.limit?fmt(g.limit):'—'}</td><td class="n">${fmt(g.s.tp)}</td><td class="n">${fmt(g.s.paid)}</td><td class="n"><b>${fmt(g.s.out)}</b></td><td class="n">${fmt(g.s.rf)}</td><td class="n">${fmt(g.s.rem)}</td><td class="n" style="color:${g.s.over?'var(--danger)':'inherit'}">${fmt(g.s.over)}</td><td class="n">${g.limit?fmt(g.avail):'—'}</td></tr>`).join('');
+  const detail=groups.map(g=>`<tr class="bank-h"><td colspan="13">${esc(g.bank)} — ${g.s.n} قرض</td></tr>`+g.rows.map(r=>`<tr class="click" data-rl="${r.l.id}"><td>${esc(r.l.name)}</td><td>${esc(r.l.facility)}</td><td class="n">${fmtD(r.l.start)}</td><td class="n">${fmtD(r.last)}</td><td class="n">${fmt(r.tp)}</td><td class="n">${fmt(r.tf)}</td><td class="n">${fmt(r.tot)}</td><td class="n">${fmt(r.paid)}</td><td class="n"><b>${fmt(r.out)}</b></td><td class="n">${fmt(r.rem)}</td><td class="n">${r.nx?fmtD(r.nx.due):'—'}</td><td class="n">${r.pc}/${r.cnt}</td><td>${st(r)}</td></tr>`).join('')
+    +`<tr class="sub"><td colspan="4">إجمالي ${esc(g.bank)}</td><td class="n">${fmt(g.s.tp)}</td><td class="n">${fmt(g.s.tf)}</td><td class="n">${fmt(g.s.tot)}</td><td class="n">${fmt(g.s.paid)}</td><td class="n">${fmt(g.s.out)}</td><td class="n">${fmt(g.s.rem)}</td><td colspan="3"></td></tr>`).join('');
+  $('#view').innerHTML=`<section class="panel"><div class="ph"><h2>تقرير القروض بالبنك</h2><span class="row"><button class="btn sm" id="repExport">تصدير Excel (CSV)</button>`+PB('report')+`</span></div>
+   <div class="row noprint">
+    <select id="rf-bank" style="width:150px"><option value="">كل البنوك</option>${banks.map(b=>`<option ${b===f.bank?'selected':''}>${esc(b)}</option>`).join('')}</select>
+    <select id="rf-status" style="width:150px"><option value="active" ${f.status==='active'?'selected':''}>القروض القائمة</option><option value="paid" ${f.status==='paid'?'selected':''}>القروض المسددة</option><option value="all" ${f.status==='all'?'selected':''}>كل القروض</option></select>
+    <select id="rf-term" style="width:140px"><option value="">كل الآجال</option><option value="short" ${f.term==='short'?'selected':''}>قصيرة الأجل</option><option value="long" ${f.term==='long'?'selected':''}>طويلة الأجل</option></select>
+   </div>
+   <div class="kpis"><div class="kpi"><span>عدد القروض</span><b>${total.n}</b></div><div class="kpi"><span>أصل القروض</span><b>${fmt0(total.tp)}</b></div><div class="kpi"><span>المسدد (أصل + ربح)</span><b>${fmt0(total.paid)}</b></div><div class="kpi"><span>المستخدم حتى تاريخه</span><b>${fmt0(total.out)}</b><em>أصل قائم</em></div><div class="kpi"><span>المتبقي مع الربح</span><b>${fmt0(total.rem)}</b></div><div class="kpi ${total.over?'bad':''}"><span>متأخر السداد</span><b>${fmt0(total.over)}</b></div></div>
+   <h3>ملخص البنوك</h3>
+   <div class="tw"><table><thead><tr><th>البنك</th><th class="n">عدد القروض</th><th class="n">الحدود</th><th class="n">أصل القروض</th><th class="n">المسدد</th><th class="n">المستخدم حتى تاريخه</th><th class="n">الربح المتبقي</th><th class="n">المتبقي مع الربح</th><th class="n">متأخر</th><th class="n">المتاح من الحدود</th></tr></thead>
+   <tbody>${summary||'<tr><td colspan="10" class="empty">لا توجد قروض مطابقة</td></tr>'}${groups.length?`<tr class="tot"><td>الإجمالي</td><td class="n">${total.n}</td><td class="n">${fmt(groups.reduce((a,g)=>a+g.limit,0))}</td><td class="n">${fmt(total.tp)}</td><td class="n">${fmt(total.paid)}</td><td class="n">${fmt(total.out)}</td><td class="n">${fmt(total.rf)}</td><td class="n">${fmt(total.rem)}</td><td class="n">${fmt(total.over)}</td><td class="n">${fmt(groups.reduce((a,g)=>a+g.avail,0))}</td></tr>`:''}</tbody></table></div>
+   <h3>تفاصيل القروض</h3>
+   <div class="tw"><table><thead><tr><th>البيان</th><th>التسهيل</th><th class="n">البداية</th><th class="n">الاستحقاق النهائي</th><th class="n">أصل القرض</th><th class="n">الربح</th><th class="n">الإجمالي</th><th class="n">المسدد</th><th class="n">المستخدم حتى تاريخه</th><th class="n">المتبقي مع الربح</th><th class="n">القسط القادم</th><th class="n">الأقساط</th><th>الحالة</th></tr></thead>
+   <tbody>${detail||'<tr><td colspan="13" class="empty">لا توجد قروض مطابقة</td></tr>'}${groups.length?`<tr class="tot"><td colspan="4">الإجمالي العام</td><td class="n">${fmt(total.tp)}</td><td class="n">${fmt(total.tf)}</td><td class="n">${fmt(total.tot)}</td><td class="n">${fmt(total.paid)}</td><td class="n">${fmt(total.out)}</td><td class="n">${fmt(total.rem)}</td><td colspan="3"></td></tr>`:''}</tbody></table></div>
+   <p class="note">المستخدم حتى تاريخه = أصل القرض غير المسدد. المسدد يشمل الأصل والربح. اضغط على أي قرض لفتح جدوله.</p></section>`;
+}
+document.addEventListener('change',e=>{const m={'rf-bank':'bank','rf-status':'status','rf-term':'term'}[e.target.id];if(m){S.rf[m]=e.target.value;vReport();S.last=snap()}});
+document.addEventListener('click',e=>{
+  if(S.view!=='report')return;
+  const tr=e.target.closest('tr[data-rl]');if(tr){S.openLoan=tr.dataset.rl;S.lf={bank:'',status:'all',term:'',q:''};setView('loans');setTimeout(()=>document.querySelector('.open-row')?.scrollIntoView({block:'center'}),50);return}
+  if(e.target.id==='repExport'){const {groups}=reportData();const rows=[['البنك','البيان','التسهيل','الأجل','المرجع','تاريخ البداية','الاستحقاق النهائي','أصل القرض','الربح','الإجمالي','المسدد من الأصل','المسدد (أصل + ربح)','المستخدم حتى تاريخه','الربح المتبقي','المتبقي مع الربح','متأخر','القسط القادم','الأقساط المسددة','عدد الأقساط','الحالة']];
+    groups.forEach(g=>g.rows.forEach(r=>rows.push([g.bank,r.l.name,r.l.facility,r.l.behavior==='long'?'طويل':'قصير',r.l.ref||'',r.l.start||'',r.last,r2(r.tp),r2(r.tf),r2(r.tot),r2(r.paidP),r2(r.paid),r2(r.out),r2(r.rf),r2(r.rem),r2(r.over),r.nx?.due||'',r.pc,r.cnt,r.status])));
+    exportCSV('تقرير-القروض-بالبنك-'+todayStr()+'.csv',rows)}
+});
+
+/* ======================= print / PDF ======================= */
+function loanStatement(l){
+  const r=loanRow(l);
+  return `<div class="kpis" style="margin-bottom:10px"><div class="kpi"><span>البنك / التسهيل</span><b style="font-size:13px">${esc(l.bank)} — ${esc(l.facility)}</b></div><div class="kpi"><span>أصل القرض</span><b>${fmt(r.tp)}</b></div><div class="kpi"><span>المسدد</span><b>${fmt(r.paid)}</b></div><div class="kpi"><span>المستخدم حتى تاريخه</span><b>${fmt(r.out)}</b></div><div class="kpi"><span>المتبقي مع الربح</span><b>${fmt(r.rem)}</b></div><div class="kpi"><span>الحالة</span><b style="font-size:13px">${r.status}</b></div></div>`+loanDetail(l);
+}
+async function doPrint(mode,what,id){
+  let title,sub='',land=false,area=null;
+  if(what==='dash'){title='لوحة المتابعة';land=true}
+  else if(what==='due'){title='الاستحقاقات';sub=(S.dueMode==='period'?`خلال ${S.dueDays} يوم (يشمل المتأخر)`:S.dueMode==='month'?'شهر '+S.dueMonth:'المتأخر فقط')+(S.dueBank?' · '+S.dueBank:' · كل البنوك');land=true}
+  else if(what==='loans'){title='سجل القروض';sub=[S.lf.bank||'كل البنوك',{active:'القائمة',paid:'المسددة',all:'الكل'}[S.lf.status]].join(' · ');land=true}
+  else if(what==='report'){title='تقرير القروض بالبنك';sub=reportDesc();land=true}
+  else if(what==='loan'){const l=S.loans.find(x=>x.id===id);if(!l)return;title='كشف قرض: '+l.name;sub=`${l.bank} — ${l.facility}${l.ref?' · مرجع '+l.ref:''}`;area=loanStatement(l)}
+  $('#printHead').innerHTML=`<div>${S.settings.companyName?`<div><b>${esc(S.settings.companyName)}</b></div>`:''}<h1>${esc(title)}</h1>${sub?`<div class="ph-sub">${esc(sub)}</div>`:''}</div><div class="ph-sub" style="text-align:left">تاريخ الطباعة: ${fmtD(todayStr())}<br>${esc(S.user)}</div>`;
+  if(area){$('#printArea').innerHTML=area;document.body.classList.add('pa')}
+  const fname=(title.replace(/[\\/:*?"<>|]/g,'-')+'-'+todayStr()+'.pdf');
+  try{if(mode==='pdf'){if(await window.api.printPDF(fname,land))toast('تم حفظ ملف PDF')}else await window.api.print(land)}
+  catch(e){toast('تعذّرت الطباعة: '+e.message)}
+  finally{document.body.classList.remove('pa');$('#printArea').innerHTML='';$('#printHead').innerHTML=''}
+}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-print]');if(b){e.stopPropagation();doPrint(b.dataset.print,b.dataset.what,b.dataset.id)}},true);
+/* أرقام إنجليزية في حقول الأرقام والتواريخ */
+new MutationObserver(()=>document.querySelectorAll('input[type=number]:not([lang]),input[type=date]:not([lang]),input[type=month]:not([lang])').forEach(i=>i.lang='en')).observe(document.body,{childList:true,subtree:true});
 
 /* ======================= boot ======================= */
 (async()=>{
