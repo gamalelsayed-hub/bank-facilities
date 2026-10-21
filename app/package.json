@@ -1,7 +1,7 @@
 {
   "name": "bank-facilities-manager",
   "productName": "إدارة التسهيلات البنكية",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "إدارة التسهيلات البنكية والقروض والاعتمادات",
   "main": "main.js",
   "author": "",

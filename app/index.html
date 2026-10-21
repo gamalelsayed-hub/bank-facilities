@@ -710,11 +710,11 @@ function vLoans(){
     .sort((a,b)=>(isActive(b)-isActive(a))||((nextLine(a)?.due||a.lines.at(-1)?.due||'')<(nextLine(b)?.due||b.lines.at(-1)?.due||'')?-1:1));
   const banks=[...new Set(S.loans.map(l=>l.bank))],cols=9+cfl.length;
   const rows=list.map(l=>{const nx=nextLine(l),act=isActive(l),open=S.openLoan===l.id,r=loanRate(l);
-    return `<tr class="click ${open?'open-row':''}" data-lid="${l.id}"><td>${esc(l.bank)}</td><td>${esc(l.name)}${l.convertedTo?' <span class="pill p-acc">حُوّل لتمويل</span>':''}${l.convertedFrom?' <span class="pill p-acc">من اعتماد</span>':''}</td><td>${esc(l.facility)}</td>
+    return `<tr class="click ${open?'open-row':''}" data-lid="${l.id}"><td>${esc(l.bank)}</td><td>${esc(l.name)}${l.convertedTo?' <span class="pill p-acc">حُوّل لتمويل</span>':''}${l.convertedFrom?' <span class="pill p-acc">من اعتماد</span>':''}${loanIssues(l).length?' <span class="pill p-warn" title="افتح القرض لرؤية التفاصيل">تحقق من البيانات</span>':''}</td><td>${esc(l.facility)}</td>
       <td class="n">${fmtD(l.start)}</td><td class="n">${nx?fmtD(nx.due):'—'}</td><td class="n">${fmt(totalPrincipal(l))}</td><td class="n">${fmt(outstanding(l))}</td><td class="n">${r!=null&&totalProfit(l)>0?fmt(r*100,2)+'%':'—'}</td>
       ${cfl.map(c=>`<td>${esc(l.custom?.[c.id]??'')}</td>`).join('')}
       <td>${act?(nx&&nx.due<todayStr()?'<span class="pill p-bad">متأخر</span>':'<span class="pill p-warn">قائم</span>'):'<span class="pill p-ok">مسدد</span>'}</td></tr>
-      ${open?`<tr><td colspan="${cols}">${loanDetail(l)}</td></tr>`:''}`}).join('');
+      ${open?`<tr><td colspan="${cols}">${S.editLoan&&S.editLoan.id===l.id?loanEditor():loanDetail(l)}</td></tr>`:''}`}).join('');
   $('#view').innerHTML=`<section class="panel"><div class="ph"><h2>سجل القروض</h2><span class="row"><button class="btn sm" id="lnExport">تصدير كل الأقساط Excel</button><span class="row noprint" style="gap:6px"><button class="btn sm" data-print="pdf" data-what="loans">PDF</button><button class="btn sm" data-print="print" data-what="loans">طباعة</button></span></span></div>
    <div class="row">
     <input id="lf-q" placeholder="بحث بالبيان أو المرجع" value="${esc(f.q)}" style="width:220px">
@@ -726,6 +726,13 @@ function vLoans(){
    <div class="tw"><table><thead><tr><th>البنك</th><th>البيان</th><th>التسهيل</th><th class="n">البداية</th><th class="n">الاستحقاق القادم</th><th class="n">أصل القرض</th><th class="n">القائم</th><th class="n">النسبة الفعلية</th>${cfl.map(c=>`<th>${esc(c.name)}</th>`).join('')}<th>الحالة</th></tr></thead>
    <tbody>${rows||`<tr><td colspan="${cols}" class="empty">لا توجد قروض مطابقة.</td></tr>`}</tbody></table></div></section>`;
 }
+function loanIssues(l){
+  const out=[],first=l.lines.reduce((a,x)=>!a||x.due<a?x.due:a,null);
+  if(l.start&&first&&l.start>=first)out.push(`تاريخ البداية (${fmtD(l.start)}) بعد أو يساوي أول استحقاق (${fmtD(first)}). غالباً اليوم والشهر مقلوبان.`);
+  const r=loanRate(l);if(r!=null&&totalProfit(l)>0&&l.behavior!=='long'&&(r>0.25))out.push(`النسبة الفعلية المستنتجة ${fmt(r*100,1)}% مرتفعة بشكل غير معتاد. راجع أصل القرض أو الربح أو تاريخ البداية.`);
+  if(l.lines.some(x=>(x.paidPrincipal||0)>x.principal+0.005))out.push('يوجد قسط مسدد من الأصل أكثر من قيمته.');
+  return out;
+}
 function loanDetail(l){
   const src=l.convertedFrom&&S.loans.find(x=>x.id===l.convertedFrom),dst=l.convertedTo&&S.loans.find(x=>x.id===l.convertedTo),t=l.terms;
   const cfs=(S.settings.customFields||[]).filter(c=>l.custom&&l.custom[c.id]!=null);
@@ -733,12 +740,14 @@ function loanDetail(l){
     return `<tr><td class="n">${i+1}</td><td class="n">${fmtD(x.due)}</td><td class="n">${fmt(x.principal)}</td><td class="n">${fmt(x.profit)}${x.waived?` <span class="muted">(خصم ${fmt(x.waived)})</span>`:''}</td><td class="n">${fmt(x.principal+x.profit)}</td><td class="n">${fmt((x.paidPrincipal||0)+(x.paidProfit||0))}</td><td><span class="pill ${c}">${tx}</span></td><td>${s!=='paid'?`<button class="btn sm" data-pay="${l.id}" data-line="${i}">سداد</button>`:''}</td></tr>`}).join('');
   const pays=(l.payments||[]).slice().reverse().map(p=>`<tr><td class="n">${fmtD(p.date)}</td><td>${p.scope==='all'?'سداد مبكر كامل':p.method==='convert'?'تحويل لتمويل اعتماد':'سداد قسط'}</td><td>${esc(p.payMethod||'')}</td><td class="n">${fmt(p.principal)}</td><td class="n">${fmt(p.profit)}</td><td>${esc(p.note||'')}</td><td class="muted">${esc(p.by||'')}</td><td><button class="btn sm dng" data-undo="${l.id}" data-pid="${p.id}">إلغاء</button></td></tr>`).join('');
   const tt=t?[STYLE[t.style],t.rateType==='benchmark'?`${t.benchmark||'مؤشر'} ${t.benchmarkRate??''}% + هامش ${t.margin}% = ${t.ratePct}%`:t.ratePct!=null?`نسبة ${t.ratePct}%`:t.rateType==='bank'?'جدول البنك':'ربح من كشف البنك',t.basis?'أساس '+t.basis:''].filter(Boolean).join(' · '):'';
-  return `<div class="detail">
+  const iss=loanIssues(l);
+  return `<div class="detail">${iss.map(t=>`<div class="msg warn noprint">تحقق من البيانات: ${esc(t)}</div>`).join('')}
     <div class="row muted" style="gap:18px;font-size:12.5px"><span>التسهيل: <b>${esc(l.bank)} — ${esc(l.facility)}</b></span>${l.ref?`<span>المرجع: <b class="num">${esc(l.ref)}</b></span>`:''}${l.master?`<span>الاعتماد الرئيسي: <b>${esc(l.master)}</b></span>`:''}${l.amountFC?`<span>المبلغ: <b class="num">${fmt(l.amountFC)} ${esc(l.currency)} × ${l.fxRate}</b></span>`:''}<span>السداد: <b>${l.repay==='installments'?'أقساط ('+l.lines.length+')':'دفعة واحدة'}</b></span>${tt?`<span>الشروط عند الفتح: <b>${esc(tt)}</b></span>`:''}${l.fees?`<span>الرسوم: <b class="num">${fmt(l.fees.total)}</b></span>`:''}${l.cashMarginAmount!=null?`<span>الهامش النقدي: <b class="num">${fmt(l.cashMarginAmount)}</b> (${l.cashMarginPct}%)</span>`:''}${src?`<span>محوّل من: <b>${esc(src.name)}</b></span>`:''}${dst?`<span>حُوّل إلى: <b>${esc(dst.name)}</b></span>`:''}${cfs.map(c=>`<span>${esc(c.name)}: <b>${esc(l.custom[c.id])}</b></span>`).join('')}${l.notes?`<span>ملاحظات: ${esc(l.notes)}</span>`:''}${l.createdBy?`<span>سجّله: ${esc(l.createdBy)}</span>`:''}</div>
     <div class="tw"><table><thead><tr><th class="n">#</th><th class="n">الاستحقاق</th><th class="n">الأصل</th><th class="n">الربح</th><th class="n">الإجمالي</th><th class="n">المسدد</th><th>الحالة</th><th></th></tr></thead><tbody>${sched}
       <tr class="tot"><td colspan="2">الإجمالي</td><td class="n">${fmt(totalPrincipal(l))}</td><td class="n">${fmt(l.lines.reduce((a,x)=>a+x.profit,0))}</td><td class="n">${fmt(l.lines.reduce((a,x)=>a+x.principal+x.profit,0))}</td><td class="n">${fmt(l.lines.reduce((a,x)=>a+(x.paidPrincipal||0)+(x.paidProfit||0),0))}</td><td colspan="2"></td></tr></tbody></table></div>
+    ${(l.edits||[]).length?`<details class="noprint"><summary>سجل تعديلات القرض (${l.edits.length})</summary><div class="log" style="margin-top:8px">${l.edits.slice().reverse().map(c=>`<div><b>${fmtD(c.at.slice(0,10))}</b> — ${esc(c.by||'')}<br>${c.items.map(esc).join('<br>')}</div>`).join('')}</div></details>`:''}
     ${pays?`<h3>حركات السداد المسجلة</h3><div class="tw"><table><thead><tr><th class="n">التاريخ</th><th>النوع</th><th>طريقة الدفع</th><th class="n">أصل</th><th class="n">ربح</th><th>ملاحظة</th><th>سجّلها</th><th></th></tr></thead><tbody>${pays}</tbody></table></div>`:'<p class="note">لا توجد حركات سداد مسجلة من البرنامج (المسدد من الإكسيل مُرحّل كما هو).</p>'}
-    <div class="row" id="del-${l.id}"><button class="btn sm" data-print="pdf" data-what="loan" data-id="${l.id}">كشف القرض PDF</button><button class="btn sm" data-print="print" data-what="loan" data-id="${l.id}">طباعة كشف القرض</button><span style="flex:1"></span><button class="btn sm dng" data-del="${l.id}">حذف القرض</button></div>
+    <div class="row" id="del-${l.id}"><button class="btn sm pri" data-ledit="${l.id}">تعديل بيانات القرض</button><button class="btn sm" data-print="pdf" data-what="loan" data-id="${l.id}">كشف القرض PDF</button><button class="btn sm" data-print="print" data-what="loan" data-id="${l.id}">طباعة كشف القرض</button><span style="flex:1"></span><button class="btn sm dng" data-del="${l.id}">حذف القرض</button></div>
   </div>`;
 }
 document.addEventListener('input',e=>{if(e.target.id==='lf-q'){S.lf.q=e.target.value;clearTimeout(S.qt);S.qt=setTimeout(()=>{vLoans();const i=$('#lf-q');i.focus();i.setSelectionRange(i.value.length,i.value.length)},250)}});
@@ -994,6 +1003,66 @@ document.addEventListener('click',async e=>{
   if(e.target.id==='bkImport'){try{const d=await window.api.importBackup();if(d){applyData(d);S.setEdit=null;toast('تم استرجاع النسخة');render()}}catch(er){toast(er.message)}return}
 });
 
+
+
+/* ======================= edit loan ======================= */
+const LE_F={name:'البيان',ref:'المرجع',master:'رقم الاعتماد الرئيسي',start:'تاريخ البداية',facilityId:'التسهيل',notes:'ملاحظات'};
+function loanEditor(){
+  const E=S.editLoan,bank=bankById(E.bankId),facs=(bank?.facilities||[]);
+  const rows=E.lines.map((x,i)=>{const paid=(x.paidPrincipal||0)+(x.paidProfit||0);return `<tr><td class="n">${i+1}</td><td><input type="date" data-ll="${i}.due" value="${esc(x.due)}"></td><td><input type="number" step="0.01" data-ll="${i}.principal" value="${x.principal}"></td><td><input type="number" step="0.01" data-ll="${i}.profit" value="${x.profit}"></td><td class="n">${fmt(paid)}</td><td>${paid?'<span class="muted" style="font-size:12px">عليه سداد</span>':`<button class="btn sm dng" data-ldel="${i}">حذف</button>`}</td></tr>`}).join('');
+  const tp=E.lines.reduce((a,x)=>a+(+x.principal||0),0),tf=E.lines.reduce((a,x)=>a+(+x.profit||0),0),r=impliedRate(E.start,tp,E.lines.map(x=>({...x,principal:+x.principal||0,profit:+x.profit||0})));
+  return `<div class="detail" id="leBox">
+   <h3>تعديل بيانات القرض</h3>
+   <fieldset><legend>بيانات القرض</legend>
+    <label class="f wide">البيان<input data-le="name" value="${esc(E.name)}"></label>
+    <label class="f">التسهيل<select data-le="facilityId">${facs.map(f=>`<option value="${f.id}" ${f.id===E.facilityId?'selected':''}>${esc(f.label)}</option>`).join('')}</select></label>
+    <label class="f">تاريخ البداية<input type="date" data-le="start" value="${esc(E.start||'')}"></label>
+    <label class="f">المرجع / رقم حساب التمويل<input class="ltr" data-le="ref" value="${esc(E.ref||'')}"></label>
+    ${E.behavior==='lc'?`<label class="f">رقم الاعتماد الرئيسي<input class="ltr" data-le="master" value="${esc(E.master||'')}"></label>`:''}
+    <label class="f wide">ملاحظات<input data-le="notes" value="${esc(E.notes||'')}"></label>
+   </fieldset>
+   <div class="tw"><table class="listedit"><thead><tr><th class="n">#</th><th>تاريخ الاستحقاق</th><th>أصل القسط</th><th>الربح</th><th class="n">المسدد</th><th></th></tr></thead><tbody>${rows}
+    <tr class="tot"><td colspan="2">الإجمالي</td><td class="n" id="le-tp">${fmt(tp)}</td><td class="n" id="le-tf">${fmt(tf)}</td><td colspan="2" id="le-rate">${r!=null&&tf>0?'النسبة الفعلية '+fmt(r*100,2)+'%':''}</td></tr></tbody></table></div>
+   <div><button class="btn sm" id="leAddLine">إضافة قسط</button></div>
+   <p class="note">المبالغ المسددة لا تتغير. لا يمكن جعل الأصل أو الربح أقل من المسدد منه، ولا حذف قسط عليه سداد (ألغِ حركة السداد أولاً).</p>
+   <div id="le-msg"></div>
+   <div class="row"><button class="btn pri" id="leSave">حفظ التعديلات</button><button class="btn" id="leCancel">إلغاء</button></div>
+  </div>`;
+}
+function leTotals(){const E=S.editLoan;if(!E||!$('#le-tp'))return;const tp=E.lines.reduce((a,x)=>a+(+x.principal||0),0),tf=E.lines.reduce((a,x)=>a+(+x.profit||0),0),r=impliedRate(E.start,tp,E.lines.map(x=>({...x,principal:+x.principal||0,profit:+x.profit||0})));
+  $('#le-tp').textContent=fmt(tp);$('#le-tf').textContent=fmt(tf);$('#le-rate').textContent=r!=null&&tf>0?'النسبة الفعلية '+fmt(r*100,2)+'%':''}
+document.addEventListener('input',e=>{if(!S.editLoan)return;const t=e.target;
+  if(t.dataset.le){S.editLoan[t.dataset.le]=t.value;leTotals()}
+  else if(t.dataset.ll){const [i,k]=t.dataset.ll.split('.');S.editLoan.lines[+i][k]=k==='due'?t.value:(t.value===''?0:+t.value);leTotals()}});
+document.addEventListener('click',async e=>{
+  if(S.view!=='loans')return;
+  const ed=e.target.closest('[data-ledit]');if(ed){S.editLoan=clone(S.loans.find(l=>l.id===ed.dataset.ledit));vLoans();return}
+  if(!S.editLoan)return;const E=S.editLoan;
+  if(e.target.id==='leCancel'){S.editLoan=null;vLoans();return}
+  if(e.target.id==='leAddLine'){const last=E.lines.reduce((a,x)=>x.due>a?x.due:a,E.start||todayStr());E.lines.push({due:addMonths(last,1),principal:0,profit:0,paidPrincipal:0,paidProfit:0,paidDate:null});vLoans();return}
+  const dl=e.target.closest('[data-ldel]');if(dl&&e.target.closest('#leBox')){const i=+dl.dataset.ldel;
+    E.lines.splice(i,1);(E.payments||[]).forEach(p=>(p.alloc||[]).forEach(a=>{if(a.i>i)a.i--}));vLoans();return}
+  if(e.target.id==='leSave'){
+    const msg=$('#le-msg'),fail=m=>msg.innerHTML=`<div class="msg bad">${esc(m)}</div>`;
+    E.name=(E.name||'').trim();if(!E.name)return fail('البيان مطلوب.');if(!E.lines.length)return fail('القرض يحتاج قسطاً واحداً على الأقل.');
+    for(const [i,x] of E.lines.entries()){if(!x.due)return fail(`القسط ${i+1}: تاريخ الاستحقاق مطلوب.`);x.principal=r2(x.principal);x.profit=r2(x.profit);
+      if(x.principal<0||x.profit<0)return fail(`القسط ${i+1}: المبالغ لا تكون سالبة.`);
+      if(x.principal+0.005<(x.paidPrincipal||0))return fail(`القسط ${i+1}: الأصل أقل من المسدد منه (${fmt(x.paidPrincipal)}).`);
+      if(x.profit+0.005<(x.paidProfit||0))return fail(`القسط ${i+1}: الربح أقل من المسدد منه (${fmt(x.paidProfit)}).`)}
+    if(E.start&&E.lines.some(x=>x.due<E.start))return fail('يوجد استحقاق قبل تاريخ البداية.');
+    const old=S.loans.find(l=>l.id===E.id),items=[];
+    for(const k in LE_F)if((old[k]??'')!==(E[k]??'')){const v=x=>k==='facilityId'?(facById(x)?.label||'—'):k==='start'?fmtD(x):(x||'—');items.push(`${LE_F[k]}: ${v(old[k])} ← ${v(E[k])}`)}
+    const fmtL=x=>`${fmtD(x.due)} أصل ${fmt(x.principal)} ربح ${fmt(x.profit)}`;
+    const oldL=old.lines.map(fmtL),newL=E.lines.map(fmtL);
+    if(JSON.stringify(oldL)!==JSON.stringify(newL)){if(oldL.length!==newL.length)items.push(`عدد الأقساط: ${oldL.length} ← ${newL.length}`);newL.forEach((t,i)=>{if(oldL[i]&&oldL[i]!==t)items.push(`القسط ${i+1}: ${oldL[i]} ← ${t}`)})}
+    if(!items.length){S.editLoan=null;vLoans();toast('لا توجد تغييرات');return}
+    const f=facById(E.facilityId);if(f){E.limitId=f.id;E.facility=f.label;if(E.behavior!=='long')E.behavior=f.behavior;E.term=E.behavior==='long'?'long':'short'}
+    const ord=E.lines.map((_,i)=>i).sort((a,b)=>E.lines[a].due<E.lines[b].due?-1:E.lines[a].due>E.lines[b].due?1:a-b),pos=[];ord.forEach((o,n)=>pos[o]=n);
+    E.lines=ord.map(i=>E.lines[i]);(E.payments||[]).forEach(p=>(p.alloc||[]).forEach(a=>{a.i=pos[a.i]}));E.repay=E.lines.length>1?'installments':'bullet';
+    E.edits=[...(E.edits||[]),{at:new Date().toISOString(),by:S.user,items}].slice(-100);
+    if(await save([putLoan(E.id,E)],'تم حفظ تعديلات القرض')){S.editLoan=null;vLoans()}
+  }
+});
 
 /* ======================= Excel import ======================= */
 const H=v=>String(v??'').replace(/\s+/g,' ').trim();
