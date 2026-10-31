@@ -374,12 +374,17 @@ ipcMain.handle('update:install', ok(async (_e, info) => {
   if (process.platform !== 'win32' || !app.isPackaged) return { restart: false, staged: src };
   if (srcExe !== exeName) fs.renameSync(path.join(src, srcExe), path.join(src, exeName));
   const q = s => "'" + String(s).replace(/'/g, "''") + "'";
-  const ps = `$ErrorActionPreference='Stop'
+  // robocopy يدمج المجلدات الموجودة بشكل صحيح (عكس Copy-Item الذي كان يُنشئ resources داخل resources فتتلف النسخة).
+  // رمز خروج robocopy أقل من 8 = نجاح. الملفات المستخرجة أحدث تاريخاً فتُنسخ فوق القديمة.
+  const ps = `$ErrorActionPreference='Continue'
 $p=${process.pid}
 while(Get-Process -Id $p -ErrorAction SilentlyContinue){Start-Sleep -Milliseconds 400}
-Start-Sleep -Milliseconds 600
+Start-Sleep -Milliseconds 800
 $ok=$false
-for($i=0;$i -lt 20 -and -not $ok;$i++){try{Copy-Item -Path (Join-Path ${q(src)} '*') -Destination ${q(dst)} -Recurse -Force;$ok=$true}catch{Start-Sleep -Milliseconds 700}}
+for($i=0;$i -lt 3 -and -not $ok;$i++){
+  robocopy ${q(src)} ${q(dst)} /E /R:4 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null
+  if($LASTEXITCODE -lt 8){$ok=$true}else{Start-Sleep -Milliseconds 1000}
+}
 Start-Process -FilePath 'explorer.exe' -ArgumentList ('"'+(Join-Path ${q(dst)} ${q(exeName)})+'"')
 Start-Sleep -Seconds 2
 Remove-Item -Recurse -Force ${q(tmp)} -ErrorAction SilentlyContinue`;
@@ -406,11 +411,16 @@ if (!lock) app.quit();
 else {
   app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
   app.whenReady().then(() => {
-    if (process.platform === 'win32') app.setAppUserModelId('sa.facilities.manager');
-    Menu.setApplicationMenu(null);
-    loadCfg();
-    try { readData(); } catch (e) { dialog.showErrorBox('تعذّر فتح ملف البيانات', String(e.message || e) + '\n' + dataFile()); }
-    backup(); watch(); createWindow();
+    try {
+      if (process.platform === 'win32') app.setAppUserModelId('sa.facilities.manager');
+      Menu.setApplicationMenu(null);
+      loadCfg();
+      try { readData(); } catch (e) { dialog.showErrorBox('تعذّر فتح ملف البيانات', String(e.message || e) + '\n' + dataFile()); }
+      backup(); watch(); createWindow();
+    } catch (e) {
+      dialog.showErrorBox('تعذّر بدء البرنامج', String(e && e.stack || e));
+    }
   });
+  process.on('uncaughtException', (e) => { try { dialog.showErrorBox('حدث خطأ غير متوقع', String(e && e.stack || e)); } catch {} });
   app.on('window-all-closed', () => app.quit());
 }
