@@ -969,7 +969,7 @@ function vSettings(){
     <div class="row"><button class="btn" id="dirChoose">تغيير مجلد البيانات</button><button class="btn" id="dirOpen">فتح المجلد</button><button class="btn" id="bkExport">حفظ نسخة احتياطية</button><button class="btn" id="bkImport">استرجاع نسخة احتياطية</button></div>
   </section>
   <section class="panel" id="impPanel"><div class="ph"><h2>استيراد من Excel</h2><div class="row"><button class="btn" id="tplSave">حفظ نموذج الاستيراد الفارغ</button><button class="btn pri" id="xlImport">استيراد من ملف Excel</button></div></div>
-    <p class="note">املأ النموذج (ورقة «البنوك والحدود» وورقة «القروض» بصف لكل قسط) ثم استورده. تظهر معاينة بالأعداد والأخطاء قبل الحفظ.</p>
+    <p class="note">ورقة «البنوك والحدود» للحدود (مرة واحدة)، وورقة القروض بصف لكل قسط — بنفس أعمدة جدول استحقاق القروض (اجل القرض، البنك، نوع التسهيل، البيان، القسط، الربح، المسدد…). «نوع التسهيل» يطابق اسم تسهيل في «البنوك والحدود». تظهر معاينة بالأعداد والأخطاء قبل الحفظ.</p>
     <div id="impBody">${S.imp?impPreview():''}</div>
   </section>`+updPanel();
 }
@@ -1071,11 +1071,14 @@ function xlDate(v){if(v==null||v==='')return null;if(typeof v==='number'){if(v<1
 const xlNum=v=>v==null||v===''?null:typeof v==='number'?v:(isNaN(+String(v).replace(/[,\s]/g,''))?NaN:+String(v).replace(/[,\s]/g,''));
 const yes=v=>/^(نعم|yes|y|true|1|✓)$/i.test(H(v));
 function curCode(v){const t=H(v);if(!t)return null;const c=S.settings.currencies.find(c=>c.code.toUpperCase()===t.toUpperCase()||c.name===t||c.name.startsWith(t)||t.startsWith(c.name.split(' ')[0]));return c?c.code:(t==='ريال'?'SAR':t==='دولار'?'USD':t.toUpperCase())}
+const naA=s=>H(s).replace(/[أإآ]/g,'ا');  // تجاهل اختلاف الهمزة في مطابقة العناوين
 function sheetObjs(rows,need){
-  const hi=rows.findIndex(r=>r&&need.every(n=>r.some(c=>H(c).startsWith(n))));if(hi<0)return null;
-  const hdr=rows[hi].map(H);const col=n=>hdr.findIndex(h=>h.startsWith(n));
-  return {col,rows:rows.slice(hi+1).map((r,i)=>({r:r||[],n:hi+i+2})).filter(x=>x.r.some(c=>c!=null&&H(c)!==''))};
+  const hi=rows.findIndex(r=>r&&need.every(n=>r.some(c=>naA(c).startsWith(naA(n)))));if(hi<0)return null;
+  const hdr=rows[hi].map(naA);const col=n=>hdr.findIndex(h=>h.startsWith(naA(n)));
+  const colv=(...names)=>{for(const nm of names){const i=col(nm);if(i>=0)return i}return -1};
+  return {col,colv,rows:rows.slice(hi+1).map((r,i)=>({r:r||[],n:hi+i+2})).filter(x=>x.r.some(c=>c!=null&&H(c)!==''))};
 }
+const normFac=s=>H(s).replace(/ـ/g,'').replace(/اعتمادات/g,'اعتماد').replace(/[أإآ]/g,'ا').trim();
 function buildImport(file,sheets){
   const errs=[],warn=[];const names=Object.keys(sheets);
   const bs=names.find(n=>n.includes('البنوك')),ls=names.find(n=>n.includes('القروض'));
@@ -1105,21 +1108,34 @@ function buildImport(file,sheets){
       if(target){const t=b.facilities.find(x=>x.label===target);if(!t)errs.push(`البنوك، صف ${n}: «يتحول إلى» = «${target}» غير موجود في ${b.name}.`);else{f.convertible=true;f.lcfTargetId=t.id===f.id?null:t.id}}
     })}}
   const loans=[];
+  const longTypeId=(S.settings.facilityTypes.find(t=>t.behavior==='long')||{}).id;
+  const makeLongFac=()=>{const f=newFacility();f.label='قروض طويلة الأجل';if(longTypeId)f.typeId=longTypeId;f.noLimit=true;f.repay=['installments'];f.maxTenor=null;f.maxInstallments=null;f.defaultTenor=36;f.defaultUnit='m';return f};
   if(ls){const o=sheetObjs(sheets[ls],['البنك','البيان']);
     if(!o)errs.push(`ورقة «${ls}»: لم أجد صف العناوين (البنك، البيان…).`);
-    else{const c=o.col,groups=new Map();
-      o.rows.forEach(({r,n})=>{const bn=H(r[c('البنك')]),nm=H(r[c('البيان')]),fl=H(r[c('اسم التسهيل')]);
+    else{const c=o.col,cv=o.colv,groups=new Map();
+      o.rows.forEach(({r,n})=>{const bn=H(r[c('البنك')]),nm=H(r[cv('البيان')]),fl=H(r[cv('اسم التسهيل','نوع التسهيل')]);
         if(!bn||!nm){errs.push(`القروض، صف ${n}: البنك والبيان مطلوبان.`);return}
         const b=findBank(bn);if(!b){errs.push(`القروض، صف ${n}: البنك «${bn}» غير موجود. أضفه في ورقة البنوك والحدود.`);return}
-        const f=fl?b.facilities.find(x=>x.label===fl):b.facilities.length===1?b.facilities[0]:null;if(!f){errs.push(`القروض، صف ${n}: التسهيل «${fl}» غير موجود في ${bn}.`);return}
+        const isLong=/طويل|long/i.test(H(r[cv('أجل القرض','اجل القرض')]));
+        const byLabel=fl?(b.facilities.find(x=>x.label===fl)||b.facilities.find(x=>normFac(x.label)===normFac(fl))):null;
+        let f;
+        if(isLong){
+          // القرض الطويل يذهب لتسهيل طويل (بدون سقف)، إلا إذا سمّى المستخدم تسهيل اعتماد صراحةً فيخصم من حده
+          if(byLabel&&['lc','lcf'].includes(behaviorOf(byLabel.typeId)))f=byLabel;
+          else{f=b.facilities.find(x=>behaviorOf(x.typeId)==='long');if(!f){f=makeLongFac();b.facilities.push(f);b._touched=true}}
+        }else{
+          f=byLabel&&behaviorOf(byLabel.typeId)!=='long'?byLabel:null;
+          if(!f){const shorts=b.facilities.filter(x=>behaviorOf(x.typeId)!=='long');if(shorts.length===1)f=shorts[0]}
+          if(!f){errs.push(`القروض، صف ${n}: نوع التسهيل «${fl}» غير موجود في ${bn}. صحّح العمود ليطابق اسم تسهيل في «البنوك والحدود».`);return}
+        }
         const due=xlDate(r[c('تاريخ الاستحقاق')]),st=xlDate(r[c('تاريخ البداية')]);
         if(!due||due==='bad'){errs.push(`القروض، صف ${n}: تاريخ الاستحقاق غير صحيح.`);return}if(st==='bad'){errs.push(`القروض، صف ${n}: تاريخ البداية غير صحيح.`);return}
-        let pr=xlNum(r[c('أصل القسط')]),pf=xlNum(r[c('الربح')])||0,paid=xlNum(r[c('المسدد')])||0;
-        const cc=curCode(r[c('العملة')])||baseCur(),fc=xlNum(r[c('المبلغ بالعملة')]),fx=xlNum(r[c('سعر الصرف')])||cur(cc)?.rate||1;
+        let pr=xlNum(r[cv('أصل القسط','القسط')]),pf=xlNum(r[c('الربح')])||0,paid=xlNum(r[c('المسدد')])||0;
+        const cc=curCode(r[c('العملة')])||baseCur(),fc=xlNum(r[cv('المبلغ بالعملة','المبلغ')]),fx=xlNum(r[cv('سعر الصرف','معامل التحويل')])||cur(cc)?.rate||1;
         if((pr==null||pr==='')&&fc)pr=r2(fc*fx);
         if(pr==null||isNaN(pr)||isNaN(pf)||isNaN(paid)||pr<0){errs.push(`القروض، صف ${n}: المبالغ غير صحيحة.`);return}
-        const key=b.id+'|'+nm;if(!groups.has(key))groups.set(key,{b,f,nm,long:/طويل|long/i.test(H(r[c('أجل القرض')])),ref:H(r[c('رقم حساب التمويل')])||null,master:H(r[c('رقم الاعتماد')])||null,start:st,cc,fx,fc:0,lines:[]});
-        const g=groups.get(key);if(st&&(!g.start||st<g.start))g.start=st;if(fc)g.fc+=fc;
+        const key=b.id+'|'+nm;if(!groups.has(key))groups.set(key,{b,f,nm,long:isLong,ref:H(r[cv('رقم حساب التمويل','المرجع')])||null,master:H(r[cv('رقم الاعتماد')])||null,start:st,cc,fx,fc:0,lines:[]});
+        const g=groups.get(key);if(st&&(!g.start||st<g.start))g.start=st;if(cc!==baseCur()&&fc)g.fc+=fc;
         const pp=r2(Math.min(paid,pr)),pfp=r2(Math.min(Math.max(0,paid-pr),pf));
         g.lines.push({due,principal:r2(pr),profit:r2(pf),paidPrincipal:pp,paidProfit:pfp,paidDate:pp||pfp?due:null});
       });
