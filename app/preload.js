@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('api', {
   updateSetCfg: (c) => call('update:setCfg', c),
   updateCheck: () => call('update:check'),
   updateInstall: (info) => call('update:install', info),
+  updateLocation: () => call('update:location'),
   onUpdateProgress: (fn) => ipcRenderer.on('update:progress', (_e, p) => fn(p)),
   notify: (title, body) => call('app:notify', title, body),
   onChanged: (fn) => ipcRenderer.on('data:changed', (_e, d) => fn(d)),

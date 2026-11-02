@@ -374,23 +374,30 @@ ipcMain.handle('update:install', ok(async (_e, info) => {
   if (process.platform !== 'win32' || !app.isPackaged) return { restart: false, staged: src };
   if (srcExe !== exeName) fs.renameSync(path.join(src, srcExe), path.join(src, exeName));
   const q = s => "'" + String(s).replace(/'/g, "''") + "'";
+  const canWrite = writable(dst);
+  const exePath = path.join(dst, exeName);
+  // إعادة التشغيل: في المجلد القابل للكتابة نُشغّل الملف مباشرة (موثوق ويتعامل مع العربية والمسافات).
+  // في المجلد المحمي (Program Files) نستخدم explorer لتشغيله بدون صلاحية مدير.
+  const relaunch = canWrite
+    ? `Start-Process -FilePath ${q(exePath)}`
+    : `Start-Process 'explorer.exe' -ArgumentList ${q('"' + exePath + '"')}`;
   // robocopy يدمج المجلدات الموجودة بشكل صحيح (عكس Copy-Item الذي كان يُنشئ resources داخل resources فتتلف النسخة).
   // رمز خروج robocopy أقل من 8 = نجاح. الملفات المستخرجة أحدث تاريخاً فتُنسخ فوق القديمة.
   const ps = `$ErrorActionPreference='Continue'
 $p=${process.pid}
 while(Get-Process -Id $p -ErrorAction SilentlyContinue){Start-Sleep -Milliseconds 400}
-Start-Sleep -Milliseconds 800
+Start-Sleep -Milliseconds 1000
 $ok=$false
-for($i=0;$i -lt 3 -and -not $ok;$i++){
-  robocopy ${q(src)} ${q(dst)} /E /R:4 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null
-  if($LASTEXITCODE -lt 8){$ok=$true}else{Start-Sleep -Milliseconds 1000}
+for($i=0;$i -lt 6 -and -not $ok;$i++){
+  robocopy ${q(src)} ${q(dst)} /E /R:6 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null
+  if($LASTEXITCODE -lt 8){$ok=$true}else{Start-Sleep -Milliseconds 1200}
 }
-Start-Process -FilePath 'explorer.exe' -ArgumentList ('"'+(Join-Path ${q(dst)} ${q(exeName)})+'"')
+${relaunch}
 Start-Sleep -Seconds 2
 Remove-Item -Recurse -Force ${q(tmp)} -ErrorAction SilentlyContinue`;
   const enc = Buffer.from(ps, 'utf16le').toString('base64');
   const { spawn } = require('child_process');
-  if (writable(dst)) {
+  if (canWrite) {
     spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-EncodedCommand', enc], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
   } else {
     // مجلد البرنامج يحتاج صلاحية مسؤول (مثل Program Files): يظهر طلب موافقة ويندوز مرة واحدة
@@ -398,8 +405,10 @@ Remove-Item -Recurse -Force ${q(tmp)} -ErrorAction SilentlyContinue`;
     spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-EncodedCommand', Buffer.from(outer, 'utf16le').toString('base64')], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
   }
   setTimeout(() => app.quit(), 1500);
-  return { restart: true, admin: !writable(dst) };
+  return { restart: true, admin: !canWrite };
 }));
+// هل مجلد البرنامج قابل للكتابة بدون صلاحية مدير؟ (للتحذير قبل التحديث)
+ipcMain.handle('update:location', ok(() => ({ dir: path.dirname(process.execPath), writable: writable(path.dirname(process.execPath)), packaged: app.isPackaged })));
 
 ipcMain.handle('app:notify', ok((_e, title, body) => {
   if (!Notification.isSupported()) return false;

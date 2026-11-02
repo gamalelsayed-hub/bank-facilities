@@ -1262,8 +1262,11 @@ async function checkUpdates(silent){
   if(silent){if(r.newer)toast('يتوفر إصدار جديد '+r.latest+' — اضغط «فحص التحديثات»');return}
   if(!r.latest){modal(`<h2>فحص التحديثات</h2><p>لا توجد إصدارات منشورة بعد.</p><div class="row"><button class="btn" data-close>إغلاق</button></div>`);return}
   if(!r.newer){modal(`<h2>فحص التحديثات</h2><div class="msg ok">أنت تستخدم أحدث نسخة (${esc(r.current)}).</div><div class="row"><button class="btn" data-close>إغلاق</button></div>`);return}
+  let loc=null;try{loc=await window.api.updateLocation()}catch{}
+  const protWarn=loc&&loc.packaged&&!loc.writable?`<div class="msg warn">البرنامج مثبّت في مجلد محمي يحتاج صلاحية مدير (مثل Program Files)، ولهذا قد يفشل التحديث التلقائي ويرجع للنسخة القديمة.<br><b>الأفضل نقله لمجلد لا يحتاج صلاحيات</b> (مثل مجلد على سطح المكتب): أغلق البرنامج، انسخ مجلده إلى سطح المكتب، وشغّله من هناك. بعدها يعمل التحديث بضغطة واحدة.<br>لو تابعت الآن، سيطلب ويندوز موافقة مدير؛ اضغط «نعم».</div>`:'';
   modal(`<h2>يتوفر إصدار جديد ${esc(r.latest)}</h2><p class="note">نسختك الحالية ${esc(r.current)}${r.date?' · تاريخ النشر '+fmtD(r.date.slice(0,10)):''}${r.asset?' · حجم التنزيل '+fmt(r.asset.size/1048576,0)+' MB':''}</p>
     ${r.notes?`<div class="notes">${esc(r.notes)}</div>`:''}
+    ${protWarn}
     <p class="note">بياناتك لا تتأثر بالتحديث. سيُغلق البرنامج ويفتح النسخة الجديدة تلقائياً.</p>
     <div id="updProg" hidden><div class="prog"><i id="updBar"></i></div><p class="note" id="updTxt"></p></div><div id="updMsg"></div>
     <div class="row"><button class="btn pri" id="updInstall" ${r.asset?'':'disabled'}>تنزيل وتثبيت</button><button class="btn" data-close>لاحقاً</button></div>`);
